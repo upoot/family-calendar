@@ -47,10 +47,10 @@ db.exec(`
 const memberCount = db.prepare('SELECT COUNT(*) as c FROM members').get().c;
 if (memberCount === 0) {
   const ins = db.prepare('INSERT INTO members (id, name, color, display_order) VALUES (?, ?, ?, ?)');
-  ins.run(1, 'Äiti', '#FF6B9D', 1);
-  ins.run(2, 'Aura', '#4ECDC4', 2);
-  ins.run(3, 'Aino', '#FFD93D', 3);
-  ins.run(4, 'Isi', '#6C5CE7', 4);
+  ins.run(1, 'Äiti', '#f472b6', 1);
+  ins.run(2, 'Aura', '#22d3ee', 2);
+  ins.run(3, 'Aino', '#fbbf24', 3);
+  ins.run(4, 'Isi', '#a78bfa', 4);
 }
 
 const catCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c;
