@@ -9,6 +9,17 @@ interface MemberData {
   name: string;
   color: string;
   display_order: number;
+  user_id?: number | null;
+}
+
+interface FamilyUserData {
+  id: number;
+  email: string;
+  name: string;
+  role: string;
+  family_role: string;
+  must_change_password: number;
+  created_at: string;
 }
 
 interface FamilyData {
@@ -20,9 +31,18 @@ interface FamilyData {
 export default function SettingsPage() {
   const { user, token, currentFamilyId, refreshUser } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<'members' | 'invite' | 'general'>('members');
+  const [tab, setTab] = useState<'members' | 'users' | 'invite' | 'general'>('members');
   const [members, setMembers] = useState<MemberData[]>([]);
+  const [familyUsers, setFamilyUsers] = useState<FamilyUserData[]>([]);
+  const [familyMembers, setFamilyMembers] = useState<MemberData[]>([]);
   const [family, setFamily] = useState<FamilyData | null>(null);
+  // New user form
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserMemberId, setNewUserMemberId] = useState<number | ''>('');
+  const [userError, setUserError] = useState('');
+  const [userSuccess, setUserSuccess] = useState('');
   const [familyName, setFamilyName] = useState('');
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
@@ -50,6 +70,48 @@ export default function SettingsPage() {
       setFamily(data);
       setFamilyName(data.name);
     });
+    fetch(`/api/families/${currentFamilyId}/users`, { headers }).then(r => r.json()).then(data => {
+      setFamilyUsers(data.users || []);
+      setFamilyMembers(data.members || []);
+    });
+  };
+
+  const createUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUserError('');
+    setUserSuccess('');
+    if (!newUserName.trim() || !newUserEmail.trim() || !newUserPassword.trim()) {
+      setUserError('Kaikki kentät ovat pakollisia');
+      return;
+    }
+    if (newUserPassword.length < 8) {
+      setUserError('Salasanan on oltava vähintään 8 merkkiä');
+      return;
+    }
+    try {
+      const res = await fetch(`/api/families/${currentFamilyId}/users`, {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          name: newUserName,
+          email: newUserEmail,
+          password: newUserPassword,
+          memberId: newUserMemberId || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Käyttäjän luonti epäonnistui');
+      }
+      setNewUserName('');
+      setNewUserEmail('');
+      setNewUserPassword('');
+      setNewUserMemberId('');
+      setUserSuccess('Käyttäjä luotu onnistuneesti!');
+      setTimeout(() => setUserSuccess(''), 3000);
+      loadData();
+    } catch (err: any) {
+      setUserError(err.message);
+    }
   };
 
   const addMember = async () => {
@@ -129,6 +191,7 @@ export default function SettingsPage() {
 
       <div className="admin-tabs">
         <button className={tab === 'members' ? 'active' : ''} onClick={() => setTab('members')}>Jäsenet</button>
+        <button className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>Käyttäjät</button>
         <button className={tab === 'invite' ? 'active' : ''} onClick={() => setTab('invite')}>Kutsu</button>
         <button className={tab === 'general' ? 'active' : ''} onClick={() => setTab('general')}>Yleiset</button>
       </div>
@@ -191,6 +254,72 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {tab === 'users' && (
+        <div>
+          <div style={{ marginBottom: '1.5rem' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>Perheen käyttäjätilit</h3>
+            {familyUsers.length > 0 ? (
+              <table className="admin-table">
+                <thead>
+                  <tr><th>Nimi</th><th>Sähköposti</th><th>Rooli</th><th>Linkitetty jäsen</th></tr>
+                </thead>
+                <tbody>
+                  {familyUsers.map(u => {
+                    const linkedMember = familyMembers.find(m => m.user_id === u.id);
+                    return (
+                      <tr key={u.id}>
+                        <td>{u.name}</td>
+                        <td>{u.email}</td>
+                        <td><span className={`role-badge ${u.family_role}`}>{u.family_role === 'owner' ? 'Ylläpitäjä' : 'Jäsen'}</span></td>
+                        <td>{linkedMember ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span className="member-dot" style={{ background: linkedMember.color, width: '8px', height: '8px' }} />
+                            {linkedMember.name}
+                          </span>
+                        ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Ei käyttäjätilejä vielä.</p>
+            )}
+          </div>
+
+          <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.5rem', maxWidth: '500px' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--text-primary)' }}>Luo käyttäjä</h3>
+            {userError && <div className="auth-error">{userError}</div>}
+            {userSuccess && <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', color: 'var(--success)', padding: '0.75rem', borderRadius: 'var(--radius-md)', marginBottom: '1rem', fontSize: '0.85rem' }}>{userSuccess}</div>}
+            <form onSubmit={createUser}>
+              <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Nimi</label>
+              <input value={newUserName} onChange={e => setNewUserName(e.target.value)} placeholder="Käyttäjän nimi" required
+                style={{ width: '100%', padding: '0.75rem 1rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.9rem', marginBottom: '1rem' }} />
+              <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Sähköposti</label>
+              <input type="email" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} placeholder="email@esimerkki.fi" required
+                style={{ width: '100%', padding: '0.75rem 1rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.9rem', marginBottom: '1rem' }} />
+              <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Väliaikainen salasana</label>
+              <input type="text" value={newUserPassword} onChange={e => setNewUserPassword(e.target.value)} placeholder="Vähintään 8 merkkiä" required
+                style={{ width: '100%', padding: '0.75rem 1rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.9rem', marginBottom: '1rem' }} />
+              <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Linkitä jäseneen (valinnainen)</label>
+              <select value={newUserMemberId} onChange={e => setNewUserMemberId(e.target.value ? parseInt(e.target.value) : '')}
+                style={{ width: '100%', padding: '0.75rem 1rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.9rem', marginBottom: '1rem', cursor: 'pointer' }}>
+                <option value="">— Ei linkitystä —</option>
+                {familyMembers.filter(m => !m.user_id).map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+              <button type="submit" className="btn-primary" style={{ padding: '0.625rem 1.25rem', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+                Luo käyttäjä
+              </button>
+            </form>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.75rem' }}>
+              Käyttäjä saa väliaikaisen salasanan ja joutuu vaihtamaan sen ensimmäisellä kirjautumisella.
+            </p>
+          </div>
+        </div>
+      )}
+
       {tab === 'invite' && family && (
         <div style={{ maxWidth: '500px' }}>
           <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.5rem' }}>
@@ -210,6 +339,9 @@ export default function SettingsPage() {
                 {copied ? '✓ Kopioitu!' : '📋 Kopioi'}
               </button>
             </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '1rem' }}>
+              📧 Sähköpostikutsut tulossa pian
+            </p>
           </div>
         </div>
       )}
