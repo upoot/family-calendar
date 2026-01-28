@@ -4,15 +4,37 @@ import Database from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
-app.use(cors({ origin: true, credentials: true }));
+
+// ── CORS — rajoita sallitut originit ────────────────────────────────────────
+const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
+app.use(cors({ origin: CORS_ORIGIN, credentials: true }));
 app.use(express.json());
 
-const JWT_SECRET = process.env.JWT_SECRET || 'family-calendar-secret-change-me';
+// ── JWT-salaisuus — vaaditaan ympäristömuuttuja ─────────────────────────────
+let JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('FATAL: JWT_SECRET environment variable is required in production');
+    process.exit(1);
+  }
+  JWT_SECRET = crypto.randomBytes(32).toString('hex');
+  console.warn('⚠️  WARNING: JWT_SECRET not set — using random secret (tokens will invalidate on restart)');
+}
+
+// ── Rate limiting — estä brute-force-hyökkäykset ────────────────────────────
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minuuttia
+  max: 5, // max 5 yritystä per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts, please try again later' },
+});
 const db = new Database(join(__dirname, 'calendar.db'));
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
@@ -91,41 +113,8 @@ function generateInviteCode() {
   return crypto.randomBytes(4).toString('hex');
 }
 
-// Seed admin user
-const adminExists = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@family.cal');
-let adminId;
-if (!adminExists) {
-  const hash = bcrypt.hashSync('admin', 10);
-  const r = db.prepare('INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, ?)').run('admin@family.cal', hash, 'Admin', 'admin');
-  adminId = r.lastInsertRowid;
-} else {
-  adminId = adminExists.id;
-}
-
-// Seed default family for existing data
-const familyExists = db.prepare('SELECT id FROM families WHERE slug = ?').get('default');
-let defaultFamilyId;
-if (!familyExists) {
-  const r = db.prepare('INSERT INTO families (name, slug, invite_code, created_by) VALUES (?, ?, ?, ?)').run('Perhe', 'default', generateInviteCode(), adminId);
-  defaultFamilyId = r.lastInsertRowid;
-  // Link admin to default family as owner
-  db.prepare('INSERT OR IGNORE INTO family_users (user_id, family_id, role) VALUES (?, ?, ?)').run(adminId, defaultFamilyId, 'owner');
-  // Migrate existing members & events to default family
-  db.prepare('UPDATE members SET family_id = ? WHERE family_id IS NULL').run(defaultFamilyId);
-  db.prepare('UPDATE events SET family_id = ? WHERE family_id IS NULL').run(defaultFamilyId);
-} else {
-  defaultFamilyId = familyExists.id;
-}
-
-// Seed members
-const memberCount = db.prepare('SELECT COUNT(*) as c FROM members').get().c;
-if (memberCount === 0) {
-  const ins = db.prepare('INSERT INTO members (id, name, color, display_order, family_id) VALUES (?, ?, ?, ?, ?)');
-  ins.run(1, 'Äiti', '#f472b6', 1, defaultFamilyId);
-  ins.run(2, 'Aura', '#22d3ee', 2, defaultFamilyId);
-  ins.run(3, 'Aino', '#fbbf24', 3, defaultFamilyId);
-  ins.run(4, 'Isi', '#a78bfa', 4, defaultFamilyId);
-}
+// ── Ensimmäinen käyttäjä saa admin-roolin automaattisesti ────────────────────
+// Ei kovakoodattua admin-tiliä — ensimmäinen rekisteröityjä on admin
 
 const catCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c;
 if (catCount === 0) {
@@ -172,19 +161,31 @@ function requireFamily(req, res, next) {
 
 // ── Auth routes ─────────────────────────────────────────────────────────────
 
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', authLimiter, (req, res) => {
+  // Tarkista Content-Type CSRF-suojauksena
+  if (!req.is('application/json')) return res.status(415).json({ error: 'Content-Type must be application/json' });
   const { email, password, name } = req.body;
   if (!email || !password || !name) return res.status(400).json({ error: 'email, password, name required' });
+  // Salasanan vähimmäispituus
+  if (typeof password !== 'string' || password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
   if (existing) return res.status(409).json({ error: 'Email already registered' });
+  // Ensimmäinen käyttäjä saa admin-roolin
+  const userCount = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
+  const role = userCount === 0 ? 'admin' : 'user';
   const hash = bcrypt.hashSync(password, 10);
-  const r = db.prepare('INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)').run(email, hash, name);
+  const r = db.prepare('INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, ?)').run(email, hash, name, role);
   const user = db.prepare('SELECT id, email, name, role FROM users WHERE id = ?').get(r.lastInsertRowid);
+  if (role === 'admin') console.log(`✅ First user ${email} registered as admin`);
   const token = signToken(user);
   res.status(201).json({ token, user });
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', authLimiter, (req, res) => {
+  // Tarkista Content-Type CSRF-suojauksena
+  if (!req.is('application/json')) return res.status(415).json({ error: 'Content-Type must be application/json' });
   const { email, password } = req.body;
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
@@ -225,7 +226,6 @@ app.get('/api/families', authMiddleware, (req, res) => {
 });
 
 app.post('/api/families', authMiddleware, (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -233,6 +233,15 @@ app.post('/api/families', authMiddleware, (req, res) => {
   const r = db.prepare('INSERT INTO families (name, slug, invite_code, created_by) VALUES (?, ?, ?, ?)').run(name, slug + '-' + Date.now(), code, req.user.id);
   db.prepare('INSERT INTO family_users (user_id, family_id, role) VALUES (?, ?, ?)').run(req.user.id, r.lastInsertRowid, 'owner');
   res.status(201).json(db.prepare('SELECT * FROM families WHERE id = ?').get(r.lastInsertRowid));
+});
+
+app.put('/api/families/:familyId', authMiddleware, requireFamily, (req, res) => {
+  if (req.user.role !== 'admin' && req.familyRole !== 'owner') {
+    return res.status(403).json({ error: 'Only owner can edit family' });
+  }
+  const { name } = req.body;
+  if (name) db.prepare('UPDATE families SET name = ? WHERE id = ?').run(name, req.familyId);
+  res.json(db.prepare('SELECT * FROM families WHERE id = ?').get(req.familyId));
 });
 
 app.get('/api/families/:familyId', authMiddleware, requireFamily, (req, res) => {
@@ -315,6 +324,36 @@ app.post('/api/members', authMiddleware, (req, res) => {
   const maxOrder = db.prepare('SELECT MAX(display_order) as m FROM members WHERE family_id = ?').get(family_id).m || 0;
   const r = db.prepare('INSERT INTO members (name, color, display_order, family_id) VALUES (?, ?, ?, ?)').run(name, color, maxOrder + 1, family_id);
   res.status(201).json(db.prepare('SELECT * FROM members WHERE id = ?').get(r.lastInsertRowid));
+});
+
+app.put('/api/members/reorder', authMiddleware, (req, res) => {
+  const { family_id, order } = req.body; // order: [{id, display_order}]
+  if (!family_id || !order) return res.status(400).json({ error: 'family_id and order required' });
+  if (req.user.role !== 'admin') {
+    const m = db.prepare('SELECT role FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, family_id);
+    if (!m || m.role !== 'owner') return res.status(403).json({ error: 'Only owner can reorder members' });
+  }
+  const stmt = db.prepare('UPDATE members SET display_order = ? WHERE id = ? AND family_id = ?');
+  const tx = db.transaction(() => {
+    for (const item of order) {
+      stmt.run(item.display_order, item.id, family_id);
+    }
+  });
+  tx();
+  res.json(db.prepare('SELECT * FROM members WHERE family_id = ? ORDER BY display_order').all(family_id));
+});
+
+app.put('/api/members/:id', authMiddleware, (req, res) => {
+  const member = db.prepare('SELECT family_id FROM members WHERE id = ?').get(req.params.id);
+  if (!member) return res.status(404).json({ error: 'Not found' });
+  if (req.user.role !== 'admin') {
+    const m = db.prepare('SELECT role FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, member.family_id);
+    if (!m || m.role !== 'owner') return res.status(403).json({ error: 'Only owner can edit members' });
+  }
+  const { name, color } = req.body;
+  if (name) db.prepare('UPDATE members SET name = ? WHERE id = ?').run(name, req.params.id);
+  if (color) db.prepare('UPDATE members SET color = ? WHERE id = ?').run(color, req.params.id);
+  res.json(db.prepare('SELECT * FROM members WHERE id = ?').get(req.params.id));
 });
 
 app.delete('/api/members/:id', authMiddleware, (req, res) => {
