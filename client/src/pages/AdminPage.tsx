@@ -105,7 +105,7 @@ export default function AdminPage() {
                   <td>{u.email}</td>
                   <td><span className={`role-badge ${u.role}`}>{u.role}</span></td>
                   <td>{u.created_at?.slice(0, 10)}</td>
-                  <td>{u.role !== 'admin' && <button className="btn-sm btn-danger" onClick={() => deleteUser(u.id)}>Poista</button>}</td>
+                  <td>{u.role !== 'superadmin' && <button className="btn-sm btn-danger" onClick={() => deleteUser(u.id)}>Poista</button>}</td>
                 </tr>
               ))}
             </tbody>
