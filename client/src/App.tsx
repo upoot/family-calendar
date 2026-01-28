@@ -4,7 +4,7 @@ import EventModal from './components/EventModal';
 import DraggableEvent from './components/DraggableEvent';
 import DroppableCell from './components/DroppableCell';
 import { useAuth } from './context/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import type { Member, Category, CalendarEvent, EventFormData } from './types';
 
 const DAYS = ['Ma', 'Ti', 'Ke', 'To', 'Pe', 'La', 'Su'];
@@ -137,9 +137,16 @@ export default function App() {
     ? `${weekStart.getDate()}.–${weekEnd.getDate()}. ${monthNames[weekStart.getMonth()]} ${weekStart.getFullYear()}`
     : `${weekStart.getDate()}.${weekStart.getMonth() + 1}.–${weekEnd.getDate()}.${weekEnd.getMonth() + 1}. ${weekEnd.getFullYear()}`;
 
+  if (user && user.families.length === 0) {
+    return <Navigate to="/onboarding" />;
+  }
+
   if (!currentFamilyId || !user) {
     return <div className="app" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p>Ladataan...</p></div>;
   }
+
+  const currentFamily = user.families.find(f => f.id === currentFamilyId);
+  const isOwner = currentFamily?.user_role === 'owner' || user.role === 'admin';
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -168,7 +175,8 @@ export default function App() {
             </div>
             <div className="user-menu">
               <span className="user-name">{user.name}</span>
-              {user.role === 'admin' && <Link to="/admin" className="btn-sm">⚙️</Link>}
+              {isOwner && <Link to="/settings" className="btn-sm" title="Perheen asetukset">⚙️</Link>}
+              {user.role === 'admin' && <Link to="/admin" className="btn-sm" title="Hallintapaneeli">🔧</Link>}
               <button className="btn-sm" onClick={logout}>Ulos</button>
             </div>
           </div>

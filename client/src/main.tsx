@@ -7,6 +7,8 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import InvitePage from './pages/InvitePage'
 import AdminPage from './pages/AdminPage'
+import OnboardingPage from './pages/OnboardingPage'
+import SettingsPage from './pages/SettingsPage'
 import './index.css'
 
 function ProtectedRoute({ children, adminOnly }: { children: React.ReactNode; adminOnly?: boolean }) {
@@ -31,6 +33,8 @@ function AppRoutes() {
       <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
       <Route path="/invite/:code" element={<InvitePage />} />
       <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
+      <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
       <Route path="/" element={<ProtectedRoute><App /></ProtectedRoute>} />
     </Routes>
   );
