@@ -3,6 +3,8 @@ import { DndContext, DragOverlay, useSensor, useSensors, PointerSensor, type Dra
 import EventModal from './components/EventModal';
 import DraggableEvent from './components/DraggableEvent';
 import DroppableCell from './components/DroppableCell';
+import { useAuth } from './context/AuthContext';
+import { Link } from 'react-router-dom';
 import type { Member, Category, CalendarEvent, EventFormData } from './types';
 
 const DAYS = ['Ma', 'Ti', 'Ke', 'To', 'Pe', 'La', 'Su'];
@@ -30,6 +32,7 @@ function addDays(d: Date, n: number) {
 }
 
 export default function App() {
+  const { user, token, currentFamilyId, setCurrentFamilyId, logout } = useAuth();
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
   const [members, setMembers] = useState<Member[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -43,25 +46,23 @@ export default function App() {
   const [activeEvent, setActiveEvent] = useState<CalendarEvent | null>(null);
 
   const weekStr = fmt(weekStart);
+  const authHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
 
-  // Drag sensors - require small movement before drag starts (to allow clicks)
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
   const fetchEvents = useCallback(async () => {
-    const res = await fetch(`/api/events?week=${weekStr}`);
-    setEvents(await res.json());
-  }, [weekStr]);
+    if (!currentFamilyId) return;
+    const res = await fetch(`/api/events?week=${weekStr}&familyId=${currentFamilyId}`, { headers: authHeaders });
+    if (res.ok) setEvents(await res.json());
+  }, [weekStr, currentFamilyId, token]);
 
   useEffect(() => {
-    fetch('/api/members').then(r => r.json()).then(setMembers);
-    fetch('/api/categories').then(r => r.json()).then(setCategories);
-  }, []);
+    if (!currentFamilyId) return;
+    fetch(`/api/members?familyId=${currentFamilyId}`, { headers: authHeaders }).then(r => r.json()).then(setMembers);
+    fetch('/api/categories', { headers: authHeaders }).then(r => r.json()).then(setCategories);
+  }, [currentFamilyId, token]);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
 
@@ -75,16 +76,17 @@ export default function App() {
   };
 
   const handleSave = async (data: EventFormData) => {
+    const payload = { ...data, family_id: currentFamilyId };
     const url = modal?.event ? `/api/events/${modal.event.id}` : '/api/events';
     const method = modal?.event ? 'PUT' : 'POST';
-    await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    await fetch(url, { method, headers: authHeaders, body: JSON.stringify(payload) });
     setModal(null);
     fetchEvents();
   };
 
   const handleDelete = async () => {
     if (!modal?.event) return;
-    await fetch(`/api/events/${modal.event.id}`, { method: 'DELETE' });
+    await fetch(`/api/events/${modal.event.id}`, { method: 'DELETE', headers: authHeaders });
     setModal(null);
     fetchEvents();
   };
@@ -96,40 +98,31 @@ export default function App() {
 
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveEvent(null);
-    
     const { active, over } = event;
     if (!over) return;
 
     const draggedEvent = events.find(e => e.id === active.id);
     if (!draggedEvent) return;
 
-    // Parse drop target: "cell-{memberId}-{dayIdx}"
     const [, memberIdStr, dayIdxStr] = (over.id as string).split('-');
     const newMemberId = parseInt(memberIdStr);
     const newDayIdx = parseInt(dayIdxStr);
     const newDate = fmt(addDays(weekStart, newDayIdx));
 
-    // Check if anything changed
-    const oldDayIdx = draggedEvent.is_recurring 
-      ? draggedEvent.weekday 
+    const oldDayIdx = draggedEvent.is_recurring
+      ? draggedEvent.weekday
       : weekDates.findIndex(d => fmt(d) === draggedEvent.date);
-    
-    if (newMemberId === draggedEvent.member_id && newDayIdx === oldDayIdx) {
-      return; // No change
-    }
 
-    // Update the event
+    if (newMemberId === draggedEvent.member_id && newDayIdx === oldDayIdx) return;
+
     const updateData: Partial<EventFormData> = {
       member_id: newMemberId,
-      ...(draggedEvent.is_recurring 
-        ? { weekday: newDayIdx }
-        : { date: newDate }
-      ),
+      ...(draggedEvent.is_recurring ? { weekday: newDayIdx } : { date: newDate }),
     };
 
     await fetch(`/api/events/${draggedEvent.id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders,
       body: JSON.stringify(updateData),
     });
 
@@ -139,21 +132,45 @@ export default function App() {
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const weekEnd = addDays(weekStart, 6);
   const monthNames = ['tammikuu', 'helmikuu', 'maaliskuu', 'huhtikuu', 'toukokuu', 'kesäkuu', 'heinäkuu', 'elokuu', 'syyskuu', 'lokakuu', 'marraskuu', 'joulukuu'];
-  
+
   const weekLabel = weekStart.getMonth() === weekEnd.getMonth()
     ? `${weekStart.getDate()}.–${weekEnd.getDate()}. ${monthNames[weekStart.getMonth()]} ${weekStart.getFullYear()}`
     : `${weekStart.getDate()}.${weekStart.getMonth() + 1}.–${weekEnd.getDate()}.${weekEnd.getMonth() + 1}. ${weekEnd.getFullYear()}`;
+
+  if (!currentFamilyId || !user) {
+    return <div className="app" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p>Ladataan...</p></div>;
+  }
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="app">
         <header>
-          <h1>📅 Perheen kalenteri</h1>
-          <div className="week-nav">
-            <button onClick={() => setWeekStart(w => addDays(w, -7))}>◀ Edellinen</button>
-            <span className="current">{weekLabel}</span>
-            <button onClick={() => setWeekStart(w => addDays(w, 7))}>Seuraava ▶</button>
-            <button onClick={() => setWeekStart(getMonday(new Date()))}>Tänään</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <h1>📅 Perheen kalenteri</h1>
+            {user.families.length > 1 && (
+              <select
+                className="family-selector"
+                value={currentFamilyId}
+                onChange={e => setCurrentFamilyId(parseInt(e.target.value))}
+              >
+                {user.families.map(f => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div className="week-nav">
+              <button onClick={() => setWeekStart(w => addDays(w, -7))}>◀ Edellinen</button>
+              <span className="current">{weekLabel}</span>
+              <button onClick={() => setWeekStart(w => addDays(w, 7))}>Seuraava ▶</button>
+              <button onClick={() => setWeekStart(getMonday(new Date()))}>Tänään</button>
+            </div>
+            <div className="user-menu">
+              <span className="user-name">{user.name}</span>
+              {user.role === 'admin' && <Link to="/admin" className="btn-sm">⚙️</Link>}
+              <button className="btn-sm" onClick={logout}>Ulos</button>
+            </div>
           </div>
         </header>
 
@@ -195,13 +212,12 @@ export default function App() {
           ))}
         </div>
 
-        {/* Drag overlay - shows dragged item */}
         <DragOverlay>
           {activeEvent && (
             <div
               className="event-card dragging"
-              style={{ 
-                borderLeftColor: activeEvent.member_color, 
+              style={{
+                borderLeftColor: activeEvent.member_color,
                 background: activeEvent.member_color + '30',
                 width: '150px'
               }}
