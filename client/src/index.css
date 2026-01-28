@@ -283,6 +283,57 @@ header h1::before {
   margin-top: 2px;
 }
 
+/* Ride section in modal */
+.ride-section {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: var(--radius-md);
+}
+
+.ride-header {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 0.75rem;
+}
+
+.ride-section .row {
+  margin-bottom: 0;
+}
+
+.ride-section input {
+  margin-bottom: 0;
+}
+
+/* Ride badges on event cards */
+.ride-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 3px;
+}
+
+.ride-badge {
+  font-size: 0.6rem;
+  padding: 2px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ride-outbound {
+  background: rgba(34, 211, 238, 0.15);
+  color: #22d3ee;
+}
+
+.ride-return {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
 .recurring-badge {
   font-size: 0.6rem;
   background: rgba(139, 92, 246, 0.2);
