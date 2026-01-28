@@ -36,7 +36,7 @@ export default function SettingsPage() {
 
   // Check if user is owner of current family
   const currentFamily = user?.families.find(f => f.id === currentFamilyId);
-  const isOwner = currentFamily?.user_role === 'owner' || user?.role === 'admin';
+  const isOwner = currentFamily?.user_role === 'owner' || user?.role === 'superadmin';
 
   useEffect(() => {
     if (!isOwner) { navigate('/'); return; }
