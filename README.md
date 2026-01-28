@@ -1,20 +1,20 @@
-# 📅 Perheen kalenteri
+# 📅 Family Calendar
 
-Moderni perhekalenteri web-sovellus. Neljä swimlanea perheenjäsenille, viikkonäkymä, toistuva tapahtumatuki.
+Modern family calendar web app. Four swimlanes for family members, weekly view, recurring event support.
 
-## Tech stack
+## Tech Stack
 
 - **Frontend:** React + TypeScript + Vite
 - **Backend:** Express + better-sqlite3
-- **UI:** Custom dark theme (Linear/Railway -inspired)
+- **UI:** Custom dark theme (Linear/Railway-inspired)
 
-## Kehitys
+## Development
 
 ```bash
-# Asenna riippuvuudet
+# Install dependencies
 npm run install:all
 
-# Käynnistä dev-ympäristö
+# Start dev environment
 npm run dev
 ```
 
@@ -23,17 +23,17 @@ Backend: `http://localhost:3001`
 
 ## Deployment
 
-Suunniteltu Railway-deploymenttiin. Backend servaa frontendin buildin tuotannossa.
+Designed for Railway deployment. Backend serves the frontend build in production.
 
-## Ominaisuudet
+## Features
 
-- 🗓️ Viikkonäkymä (ma-su)
-- 👨‍👩‍👧‍👦 4 swimlanea: Äiti, Aura, Aino, Isi
-- 🔄 Toistuvat tapahtumat
-- 🏷️ Kategoriat (Harkat, Työ, Koulu, jne.)
+- 🗓️ Weekly view (Mon–Sun)
+- 👨‍👩‍👧‍👦 4 swimlanes for family members
+- 🔄 Recurring events
+- 🏷️ Categories (Sports, Work, School, etc.)
 - 🌙 Dark mode UI
+- 🖱️ Drag & drop events
 
 ---
 
 Made with 🪷 by Ulpukka
-Full throttle vibe coding MAYHEM.
