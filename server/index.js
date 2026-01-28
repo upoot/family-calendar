@@ -225,7 +225,6 @@ app.get('/api/families', authMiddleware, (req, res) => {
 });
 
 app.post('/api/families', authMiddleware, (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -233,6 +232,15 @@ app.post('/api/families', authMiddleware, (req, res) => {
   const r = db.prepare('INSERT INTO families (name, slug, invite_code, created_by) VALUES (?, ?, ?, ?)').run(name, slug + '-' + Date.now(), code, req.user.id);
   db.prepare('INSERT INTO family_users (user_id, family_id, role) VALUES (?, ?, ?)').run(req.user.id, r.lastInsertRowid, 'owner');
   res.status(201).json(db.prepare('SELECT * FROM families WHERE id = ?').get(r.lastInsertRowid));
+});
+
+app.put('/api/families/:familyId', authMiddleware, requireFamily, (req, res) => {
+  if (req.user.role !== 'admin' && req.familyRole !== 'owner') {
+    return res.status(403).json({ error: 'Only owner can edit family' });
+  }
+  const { name } = req.body;
+  if (name) db.prepare('UPDATE families SET name = ? WHERE id = ?').run(name, req.familyId);
+  res.json(db.prepare('SELECT * FROM families WHERE id = ?').get(req.familyId));
 });
 
 app.get('/api/families/:familyId', authMiddleware, requireFamily, (req, res) => {
@@ -315,6 +323,36 @@ app.post('/api/members', authMiddleware, (req, res) => {
   const maxOrder = db.prepare('SELECT MAX(display_order) as m FROM members WHERE family_id = ?').get(family_id).m || 0;
   const r = db.prepare('INSERT INTO members (name, color, display_order, family_id) VALUES (?, ?, ?, ?)').run(name, color, maxOrder + 1, family_id);
   res.status(201).json(db.prepare('SELECT * FROM members WHERE id = ?').get(r.lastInsertRowid));
+});
+
+app.put('/api/members/reorder', authMiddleware, (req, res) => {
+  const { family_id, order } = req.body; // order: [{id, display_order}]
+  if (!family_id || !order) return res.status(400).json({ error: 'family_id and order required' });
+  if (req.user.role !== 'admin') {
+    const m = db.prepare('SELECT role FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, family_id);
+    if (!m || m.role !== 'owner') return res.status(403).json({ error: 'Only owner can reorder members' });
+  }
+  const stmt = db.prepare('UPDATE members SET display_order = ? WHERE id = ? AND family_id = ?');
+  const tx = db.transaction(() => {
+    for (const item of order) {
+      stmt.run(item.display_order, item.id, family_id);
+    }
+  });
+  tx();
+  res.json(db.prepare('SELECT * FROM members WHERE family_id = ? ORDER BY display_order').all(family_id));
+});
+
+app.put('/api/members/:id', authMiddleware, (req, res) => {
+  const member = db.prepare('SELECT family_id FROM members WHERE id = ?').get(req.params.id);
+  if (!member) return res.status(404).json({ error: 'Not found' });
+  if (req.user.role !== 'admin') {
+    const m = db.prepare('SELECT role FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, member.family_id);
+    if (!m || m.role !== 'owner') return res.status(403).json({ error: 'Only owner can edit members' });
+  }
+  const { name, color } = req.body;
+  if (name) db.prepare('UPDATE members SET name = ? WHERE id = ?').run(name, req.params.id);
+  if (color) db.prepare('UPDATE members SET color = ? WHERE id = ?').run(color, req.params.id);
+  res.json(db.prepare('SELECT * FROM members WHERE id = ?').get(req.params.id));
 });
 
 app.delete('/api/members/:id', authMiddleware, (req, res) => {
