@@ -23,6 +23,8 @@ export interface CalendarEvent {
   location: string | null;
   description: string | null;
   is_recurring: number;
+  ride_outbound: string | null;
+  ride_return: string | null;
   member_name: string;
   member_color: string;
   category_name: string | null;
@@ -40,4 +42,6 @@ export interface EventFormData {
   location: string;
   description: string;
   is_recurring: boolean;
+  ride_outbound: string;
+  ride_return: string;
 }
