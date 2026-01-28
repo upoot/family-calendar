@@ -11,6 +11,8 @@ export default function DraggableEvent({ event, onClick }: Props) {
     id: event.id,
   });
 
+  const hasRides = event.ride_outbound || event.ride_return;
+
   return (
     <div
       ref={setNodeRef}
@@ -35,6 +37,16 @@ export default function DraggableEvent({ event, onClick }: Props) {
       </div>
       <div className="event-time">{event.start_time}–{event.end_time}</div>
       {event.location && <div className="event-location">📍 {event.location}</div>}
+      {hasRides && (
+        <div className="ride-badges">
+          {event.ride_outbound && (
+            <span className="ride-badge ride-outbound">🚗→ {event.ride_outbound}</span>
+          )}
+          {event.ride_return && (
+            <span className="ride-badge ride-return">🚗← {event.ride_return}</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
