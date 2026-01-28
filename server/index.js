@@ -124,6 +124,42 @@ app.put('/api/events/:id', (req, res) => {
   res.json(event);
 });
 
+// PATCH - partial update (for drag & drop)
+app.patch('/api/events/:id', (req, res) => {
+  const { member_id, date, weekday } = req.body;
+  const updates = [];
+  const values = [];
+  
+  if (member_id !== undefined) {
+    updates.push('member_id = ?');
+    values.push(member_id);
+  }
+  if (date !== undefined) {
+    updates.push('date = ?');
+    values.push(date);
+  }
+  if (weekday !== undefined) {
+    updates.push('weekday = ?');
+    values.push(weekday);
+  }
+  
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+  
+  updates.push("updated_at = datetime('now')");
+  values.push(req.params.id);
+  
+  db.prepare(`UPDATE events SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  
+  const event = db.prepare(`
+    SELECT e.*, m.name as member_name, m.color as member_color, c.name as category_name, c.icon as category_icon
+    FROM events e JOIN members m ON e.member_id = m.id LEFT JOIN categories c ON e.category_id = c.id
+    WHERE e.id = ?
+  `).get(req.params.id);
+  res.json(event);
+});
+
 app.delete('/api/events/:id', (req, res) => {
   db.prepare('DELETE FROM events WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
