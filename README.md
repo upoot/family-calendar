@@ -36,3 +36,4 @@ Suunniteltu Railway-deploymenttiin. Backend servaa frontendin buildin tuotannoss
 ---
 
 Made with 🪷 by Ulpukka
+Full throttle vibe coding MAYHEM.
