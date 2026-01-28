@@ -13,6 +13,9 @@ interface Props {
   onClose: () => void;
 }
 
+// Categories that show ride fields
+const RIDE_CATEGORIES = ['Harkat'];
+
 export default function EventModal({ event, members, categories, defaultMemberId, defaultDate, defaultWeekday, onSave, onDelete, onClose }: Props) {
   const [form, setForm] = useState<EventFormData>({
     member_id: event?.member_id ?? defaultMemberId ?? members[0]?.id ?? 1,
@@ -25,6 +28,8 @@ export default function EventModal({ event, members, categories, defaultMemberId
     location: event?.location ?? '',
     description: event?.description ?? '',
     is_recurring: event ? !!event.is_recurring : false,
+    ride_outbound: event?.ride_outbound ?? '',
+    ride_return: event?.ride_return ?? '',
   });
 
   useEffect(() => {
@@ -40,6 +45,10 @@ export default function EventModal({ event, members, categories, defaultMemberId
     if (!form.title.trim()) return;
     onSave(form);
   };
+
+  // Check if current category should show ride fields
+  const selectedCategory = categories.find(c => c.id === form.category_id);
+  const showRideFields = selectedCategory && RIDE_CATEGORIES.includes(selectedCategory.name);
 
   const WEEKDAYS = ['Maanantai', 'Tiistai', 'Keskiviikko', 'Torstai', 'Perjantai', 'Lauantai', 'Sunnuntai'];
 
@@ -72,6 +81,30 @@ export default function EventModal({ event, members, categories, defaultMemberId
             <option value="">— Ei kategoriaa —</option>
             {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
           </select>
+
+          {showRideFields && (
+            <div className="ride-section">
+              <div className="ride-header">🚗 Kuskaukset</div>
+              <div className="row">
+                <div>
+                  <label>→ Meno</label>
+                  <input
+                    value={form.ride_outbound}
+                    onChange={e => set('ride_outbound', e.target.value)}
+                    placeholder="Esim. Virtaset, Oma..."
+                  />
+                </div>
+                <div>
+                  <label>← Paluu</label>
+                  <input
+                    value={form.ride_return}
+                    onChange={e => set('ride_return', e.target.value)}
+                    placeholder="Esim. Oma, Korhosen äiti..."
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <label>Sijainti</label>
           <input value={form.location} onChange={e => set('location', e.target.value)} />

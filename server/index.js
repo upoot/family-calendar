@@ -43,6 +43,14 @@ db.exec(`
   );
 `);
 
+// Migrate: add ride columns
+try {
+  db.exec(`ALTER TABLE events ADD COLUMN ride_outbound TEXT`);
+  db.exec(`ALTER TABLE events ADD COLUMN ride_return TEXT`);
+} catch (e) {
+  // columns already exist
+}
+
 // Seed members
 const memberCount = db.prepare('SELECT COUNT(*) as c FROM members').get().c;
 if (memberCount === 0) {
@@ -95,11 +103,11 @@ app.get('/api/events', (req, res) => {
 });
 
 app.post('/api/events', (req, res) => {
-  const { member_id, category_id, title, start_time, end_time, date, weekday, location, description, is_recurring } = req.body;
+  const { member_id, category_id, title, start_time, end_time, date, weekday, location, description, is_recurring, ride_outbound, ride_return } = req.body;
   const result = db.prepare(`
-    INSERT INTO events (member_id, category_id, title, start_time, end_time, date, weekday, location, description, is_recurring)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(member_id, category_id || null, title, start_time, end_time, date || null, weekday ?? null, location || null, description || null, is_recurring ? 1 : 0);
+    INSERT INTO events (member_id, category_id, title, start_time, end_time, date, weekday, location, description, is_recurring, ride_outbound, ride_return)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(member_id, category_id || null, title, start_time, end_time, date || null, weekday ?? null, location || null, description || null, is_recurring ? 1 : 0, ride_outbound || null, ride_return || null);
   
   const event = db.prepare(`
     SELECT e.*, m.name as member_name, m.color as member_color, c.name as category_name, c.icon as category_icon
@@ -110,11 +118,11 @@ app.post('/api/events', (req, res) => {
 });
 
 app.put('/api/events/:id', (req, res) => {
-  const { member_id, category_id, title, start_time, end_time, date, weekday, location, description, is_recurring } = req.body;
+  const { member_id, category_id, title, start_time, end_time, date, weekday, location, description, is_recurring, ride_outbound, ride_return } = req.body;
   db.prepare(`
-    UPDATE events SET member_id=?, category_id=?, title=?, start_time=?, end_time=?, date=?, weekday=?, location=?, description=?, is_recurring=?, updated_at=datetime('now')
+    UPDATE events SET member_id=?, category_id=?, title=?, start_time=?, end_time=?, date=?, weekday=?, location=?, description=?, is_recurring=?, ride_outbound=?, ride_return=?, updated_at=datetime('now')
     WHERE id=?
-  `).run(member_id, category_id || null, title, start_time, end_time, date || null, weekday ?? null, location || null, description || null, is_recurring ? 1 : 0, req.params.id);
+  `).run(member_id, category_id || null, title, start_time, end_time, date || null, weekday ?? null, location || null, description || null, is_recurring ? 1 : 0, ride_outbound || null, ride_return || null, req.params.id);
   
   const event = db.prepare(`
     SELECT e.*, m.name as member_name, m.color as member_color, c.name as category_name, c.icon as category_icon
