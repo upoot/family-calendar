@@ -71,7 +71,15 @@
       "members": "Jäsenet",
       "users": "Käyttäjät",
       "invite": "Kutsu",
-      "general": "Yleiset"
+      "general": "Yleiset",
+      "eventTypes": "Tapahtumatyypit"
+    },
+    "sidebar": {
+      "general": "📋 Yleiset",
+      "members": "👥 Jäsenet",
+      "eventTypes": "🏷️ Tapahtumatyypit",
+      "users": "👤 Käyttäjät",
+      "invite": "📩 Kutsut"
     },
     "newMemberPlaceholder": "Uuden jäsenen nimi",
     "add": "Lisää",
@@ -108,7 +116,18 @@
     "emailInvitesSoon": "📧 Sähköpostikutsut tulossa pian",
     "familyName": "Perheen nimi",
     "save": "Tallenna",
-    "saving": "Tallennetaan..."
+    "saving": "Tallennetaan...",
+    "categories": {
+      "title": "Tapahtumatyypit",
+      "name": "Nimi",
+      "icon": "Ikoni",
+      "addNew": "Lisää tyyppi",
+      "namePlaceholder": "Tyypin nimi",
+      "iconPlaceholder": "🏷️",
+      "deleteConfirm": "Poista tapahtumatyyppi?",
+      "inUseWarning": "Tätä tyyppiä käytetään {{count}} tapahtumassa. Poista ensin tapahtumat.",
+      "noCategories": "Ei tapahtumia vielä."
+    }
   },
   "admin": {
     "title": "Hallintapaneeli",
