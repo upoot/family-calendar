@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { DndContext, DragOverlay, useSensor, useSensors, PointerSensor, type DragStartEvent, type DragEndEvent } from '@dnd-kit/core';
 import { useTranslation } from 'react-i18next';
 import EventModal from './components/EventModal';
@@ -236,7 +236,7 @@ export default function App() {
           ))}
 
           {members.map(member => (
-            <>
+            <React.Fragment key={member.id}>
               <div key={`label-${member.id}`} className="member-label">
                 <span className="member-dot" style={{ background: member.color }} />
                 {member.name}
@@ -260,7 +260,7 @@ export default function App() {
                   </DroppableCell>
                 );
               })}
-            </>
+            </React.Fragment>
           ))}
         </div>
         </div>{/* end dashboard-main */}
