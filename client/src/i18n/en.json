@@ -71,7 +71,15 @@
       "members": "Members",
       "users": "Users",
       "invite": "Invite",
-      "general": "General"
+      "general": "General",
+      "eventTypes": "Event types"
+    },
+    "sidebar": {
+      "general": "📋 General",
+      "members": "👥 Members",
+      "eventTypes": "🏷️ Event types",
+      "users": "👤 Users",
+      "invite": "📩 Invites"
     },
     "newMemberPlaceholder": "New member name",
     "add": "Add",
@@ -108,7 +116,18 @@
     "emailInvitesSoon": "📧 Email invites coming soon",
     "familyName": "Family name",
     "save": "Save",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "categories": {
+      "title": "Event types",
+      "name": "Name",
+      "icon": "Icon",
+      "addNew": "Add type",
+      "namePlaceholder": "Type name",
+      "iconPlaceholder": "🏷️",
+      "deleteConfirm": "Delete event type?",
+      "inUseWarning": "This type is used by {{count}} events. Remove events first.",
+      "noCategories": "No event types yet."
+    }
   },
   "admin": {
     "title": "Admin panel",
