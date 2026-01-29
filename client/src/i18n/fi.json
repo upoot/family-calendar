@@ -4,8 +4,29 @@
     "loading": "Ladataan..."
   },
   "calendar": {
-    "days": ["Ma", "Ti", "Ke", "To", "Pe", "La", "Su"],
-    "months": ["tammikuu", "helmikuu", "maaliskuu", "huhtikuu", "toukokuu", "kesäkuu", "heinäkuu", "elokuu", "syyskuu", "lokakuu", "marraskuu", "joulukuu"],
+    "days": [
+      "Ma",
+      "Ti",
+      "Ke",
+      "To",
+      "Pe",
+      "La",
+      "Su"
+    ],
+    "months": [
+      "tammikuu",
+      "helmikuu",
+      "maaliskuu",
+      "huhtikuu",
+      "toukokuu",
+      "kesäkuu",
+      "heinäkuu",
+      "elokuu",
+      "syyskuu",
+      "lokakuu",
+      "marraskuu",
+      "joulukuu"
+    ],
     "weekNav": {
       "prev": "◀ Edellinen",
       "next": "Seuraava ▶",
@@ -238,10 +259,53 @@
     "description": "Kuvaus",
     "recurringWeekly": "Toistuva viikoittain",
     "weekday": "Viikonpäivä",
-    "weekdays": ["Maanantai", "Tiistai", "Keskiviikko", "Torstai", "Perjantai", "Lauantai", "Sunnuntai"],
+    "weekdays": [
+      "Maanantai",
+      "Tiistai",
+      "Keskiviikko",
+      "Torstai",
+      "Perjantai",
+      "Lauantai",
+      "Sunnuntai"
+    ],
     "date": "Päivämäärä",
     "delete": "Poista",
     "cancel": "Peruuta",
     "save": "Tallenna"
+  },
+  "nlp": {
+    "placeholder": "kauppa: maitoa / tehtävä: pese auto / varaa: treeni ti klo 17",
+    "addedShopping": "🛒 Lisätty kauppalistaan: {{item}}",
+    "addedTodo": "✅ Tehtävä lisätty: {{item}}",
+    "eventHint": "📅 \"{{item}}\" — klikkaa kalenterista solua lisäämiseen",
+    "queryHint": "🔍 \"{{item}}\" — haku tulossa pian",
+    "unknown": "🤔 En tunnistanut: \"{{item}}\"",
+    "error": "❌ Virhe: {{error}}"
+  },
+  "widgets": {
+    "weeklyTodos": "Viikon tehtävät",
+    "shoppingList": "Ostoslista",
+    "allLink": "Kaikki →",
+    "noTodos": "Ei tehtäviä ✨",
+    "emptyList": "Lista tyhjä 🎉",
+    "bought": "{{count}} ostettu",
+    "more": "+{{count}} muuta",
+    "done": "{{done}}/{{total}}"
+  },
+  "todo": {
+    "title": "Viikon tehtävät",
+    "add": "Lisää tehtävä...",
+    "noAssignee": "Ei vastuuhenkilöä",
+    "empty": "Ei tehtäviä tälle viikolle ✨",
+    "done": "{{done}} / {{total}} tehty",
+    "today": "Tänään"
+  },
+  "shopping": {
+    "title": "🛒 Ostoslista",
+    "add": "Lisää tuote...",
+    "empty": "Ostoslista on tyhjä 🎉",
+    "bought": "{{done}} / {{total}} ostettu",
+    "clearChecked": "Tyhjennä ostetut",
+    "noCategory": "Ei kategoriaa"
   }
 }

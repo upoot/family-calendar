@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface Todo {
   id: number;
@@ -26,6 +27,7 @@ function getISOWeek(): string {
 
 export default function TodoWidget({ familyId, token, refreshKey }: Props) {
   const [todos, setTodos] = useState<Todo[]>([]);
+  const { t } = useTranslation();
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
   const load = useCallback(async () => {
@@ -50,8 +52,8 @@ export default function TodoWidget({ familyId, token, refreshKey }: Props) {
   return (
     <div className="widget">
       <div className="widget-header">
-        <h3>✅ Viikon tehtävät</h3>
-        <Link to="/todos" className="widget-link">Kaikki →</Link>
+        <h3>✅ {t('widgets.weeklyTodos')}</h3>
+        <Link to="/todos" className="widget-link">{t('widgets.allLink')}</Link>
       </div>
       {todos.length > 0 && (
         <div className="widget-progress">
@@ -73,7 +75,7 @@ export default function TodoWidget({ familyId, token, refreshKey }: Props) {
             )}
           </div>
         ))}
-        {todos.length === 0 && <p className="widget-empty">Ei tehtäviä ✨</p>}
+        {todos.length === 0 && <p className="widget-empty">{t('widgets.noTodos')}</p>}
       </div>
     </div>
   );
