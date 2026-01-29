@@ -10,11 +10,12 @@ import AdminPage from './pages/AdminPage'
 import OnboardingPage from './pages/OnboardingPage'
 import SettingsPage from './pages/SettingsPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
+import './i18n/i18n'
 import './index.css'
 
 function ProtectedRoute({ children, adminOnly, allowPasswordChange }: { children: React.ReactNode; adminOnly?: boolean; allowPasswordChange?: boolean }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="auth-page"><p>Ladataan...</p></div>;
+  if (loading) return <div className="auth-page"><p>Loading...</p></div>;
   if (!user) return <Navigate to="/login" />;
   if (user.must_change_password && !allowPasswordChange) return <Navigate to="/change-password" />;
   if (adminOnly && user.role !== 'superadmin') return <Navigate to="/" />;
@@ -23,7 +24,7 @@ function ProtectedRoute({ children, adminOnly, allowPasswordChange }: { children
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="auth-page"><p>Ladataan...</p></div>;
+  if (loading) return <div className="auth-page"><p>Loading...</p></div>;
   if (user) return <Navigate to="/" />;
   return <>{children}</>;
 }

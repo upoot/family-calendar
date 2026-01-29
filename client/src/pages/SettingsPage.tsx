@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -29,6 +30,7 @@ interface FamilyData {
 }
 
 export default function SettingsPage() {
+  const { t } = useTranslation();
   const { user, token, currentFamilyId, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState<'members' | 'users' | 'invite' | 'general'>('members');
@@ -36,7 +38,6 @@ export default function SettingsPage() {
   const [familyUsers, setFamilyUsers] = useState<FamilyUserData[]>([]);
   const [familyMembers, setFamilyMembers] = useState<MemberData[]>([]);
   const [family, setFamily] = useState<FamilyData | null>(null);
-  // New user form
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
@@ -54,7 +55,6 @@ export default function SettingsPage() {
 
   const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
 
-  // Check if user is owner of current family
   const currentFamily = user?.families.find(f => f.id === currentFamilyId);
   const isOwner = currentFamily?.user_role === 'owner' || user?.role === 'superadmin';
 
@@ -81,11 +81,11 @@ export default function SettingsPage() {
     setUserError('');
     setUserSuccess('');
     if (!newUserName.trim() || !newUserEmail.trim() || !newUserPassword.trim()) {
-      setUserError('Kaikki kentät ovat pakollisia');
+      setUserError(t('settings.allFieldsRequired'));
       return;
     }
     if (newUserPassword.length < 8) {
-      setUserError('Salasanan on oltava vähintään 8 merkkiä');
+      setUserError(t('settings.passwordMinLength'));
       return;
     }
     try {
@@ -100,13 +100,13 @@ export default function SettingsPage() {
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Käyttäjän luonti epäonnistui');
+        throw new Error(data.error || t('settings.userCreateFailed'));
       }
       setNewUserName('');
       setNewUserEmail('');
       setNewUserPassword('');
       setNewUserMemberId('');
-      setUserSuccess('Käyttäjä luotu onnistuneesti!');
+      setUserSuccess(t('settings.userCreatedSuccess'));
       setTimeout(() => setUserSuccess(''), 3000);
       loadData();
     } catch (err: any) {
@@ -126,7 +126,7 @@ export default function SettingsPage() {
   };
 
   const deleteMember = async (id: number) => {
-    if (!confirm('Poista jäsen ja kaikki tapahtumat?')) return;
+    if (!confirm(t('settings.deleteMemberConfirm'))) return;
     await fetch(`/api/members/${id}`, { method: 'DELETE', headers });
     loadData();
   };
@@ -185,15 +185,15 @@ export default function SettingsPage() {
   return (
     <div className="app">
       <header>
-        <h1>⚙️ Perheen asetukset</h1>
-        <Link to="/" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>← Kalenteriin</Link>
+        <h1>⚙️ {t('settings.title')}</h1>
+        <Link to="/" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>{t('settings.backToCalendar')}</Link>
       </header>
 
       <div className="admin-tabs">
-        <button className={tab === 'members' ? 'active' : ''} onClick={() => setTab('members')}>Jäsenet</button>
-        <button className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>Käyttäjät</button>
-        <button className={tab === 'invite' ? 'active' : ''} onClick={() => setTab('invite')}>Kutsu</button>
-        <button className={tab === 'general' ? 'active' : ''} onClick={() => setTab('general')}>Yleiset</button>
+        <button className={tab === 'members' ? 'active' : ''} onClick={() => setTab('members')}>{t('settings.tabs.members')}</button>
+        <button className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>{t('settings.tabs.users')}</button>
+        <button className={tab === 'invite' ? 'active' : ''} onClick={() => setTab('invite')}>{t('settings.tabs.invite')}</button>
+        <button className={tab === 'general' ? 'active' : ''} onClick={() => setTab('general')}>{t('settings.tabs.general')}</button>
       </div>
 
       {tab === 'members' && (
@@ -237,7 +237,7 @@ export default function SettingsPage() {
             <input
               value={newName}
               onChange={e => setNewName(e.target.value)}
-              placeholder="Uuden jäsenen nimi"
+              placeholder={t('settings.newMemberPlaceholder')}
               style={{ flex: 1, padding: '0.75rem 1rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.9rem' }}
               onKeyDown={e => { if (e.key === 'Enter') addMember(); }}
             />
@@ -248,7 +248,7 @@ export default function SettingsPage() {
               style={{ width: '44px', height: '44px', padding: '2px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', cursor: 'pointer' }}
             />
             <button className="btn-primary" style={{ padding: '0.625rem 1.25rem', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }} onClick={addMember} disabled={!newName.trim()}>
-              Lisää
+              {t('settings.add')}
             </button>
           </div>
         </div>
@@ -257,11 +257,11 @@ export default function SettingsPage() {
       {tab === 'users' && (
         <div>
           <div style={{ marginBottom: '1.5rem' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>Perheen käyttäjätilit</h3>
+            <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>{t('settings.userAccounts')}</h3>
             {familyUsers.length > 0 ? (
               <table className="admin-table">
                 <thead>
-                  <tr><th>Nimi</th><th>Sähköposti</th><th>Rooli</th><th>Linkitetty jäsen</th></tr>
+                  <tr><th>{t('settings.tableHeaders.name')}</th><th>{t('settings.tableHeaders.email')}</th><th>{t('settings.tableHeaders.role')}</th><th>{t('settings.tableHeaders.linkedMember')}</th></tr>
                 </thead>
                 <tbody>
                   {familyUsers.map(u => {
@@ -270,7 +270,7 @@ export default function SettingsPage() {
                       <tr key={u.id}>
                         <td>{u.name}</td>
                         <td>{u.email}</td>
-                        <td><span className={`role-badge ${u.family_role}`}>{u.family_role === 'owner' ? 'Ylläpitäjä' : 'Jäsen'}</span></td>
+                        <td><span className={`role-badge ${u.family_role}`}>{u.family_role === 'owner' ? t('settings.roleOwner') : t('settings.roleMember')}</span></td>
                         <td>{linkedMember ? (
                           <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <span className="member-dot" style={{ background: linkedMember.color, width: '8px', height: '8px' }} />
@@ -283,38 +283,38 @@ export default function SettingsPage() {
                 </tbody>
               </table>
             ) : (
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Ei käyttäjätilejä vielä.</p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{t('settings.noUsers')}</p>
             )}
           </div>
 
           <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.5rem', maxWidth: '500px' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--text-primary)' }}>Luo käyttäjä</h3>
+            <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--text-primary)' }}>{t('settings.createUser')}</h3>
             {userError && <div className="auth-error">{userError}</div>}
             {userSuccess && <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', color: 'var(--success)', padding: '0.75rem', borderRadius: 'var(--radius-md)', marginBottom: '1rem', fontSize: '0.85rem' }}>{userSuccess}</div>}
             <form onSubmit={createUser}>
-              <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Nimi</label>
-              <input value={newUserName} onChange={e => setNewUserName(e.target.value)} placeholder="Käyttäjän nimi" required
+              <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('settings.userName')}</label>
+              <input value={newUserName} onChange={e => setNewUserName(e.target.value)} placeholder={t('settings.userNamePlaceholder')} required
                 style={{ width: '100%', padding: '0.75rem 1rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.9rem', marginBottom: '1rem' }} />
-              <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Sähköposti</label>
-              <input type="email" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} placeholder="email@esimerkki.fi" required
+              <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('settings.userEmail')}</label>
+              <input type="email" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} placeholder={t('settings.userEmailPlaceholder')} required
                 style={{ width: '100%', padding: '0.75rem 1rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.9rem', marginBottom: '1rem' }} />
-              <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Väliaikainen salasana</label>
-              <input type="text" value={newUserPassword} onChange={e => setNewUserPassword(e.target.value)} placeholder="Vähintään 8 merkkiä" required
+              <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('settings.tempPassword')}</label>
+              <input type="text" value={newUserPassword} onChange={e => setNewUserPassword(e.target.value)} placeholder={t('settings.tempPasswordPlaceholder')} required
                 style={{ width: '100%', padding: '0.75rem 1rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.9rem', marginBottom: '1rem' }} />
-              <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Linkitä jäseneen (valinnainen)</label>
+              <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('settings.linkMember')}</label>
               <select value={newUserMemberId} onChange={e => setNewUserMemberId(e.target.value ? parseInt(e.target.value) : '')}
                 style={{ width: '100%', padding: '0.75rem 1rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.9rem', marginBottom: '1rem', cursor: 'pointer' }}>
-                <option value="">— Ei linkitystä —</option>
+                <option value="">{t('settings.noLink')}</option>
                 {familyMembers.filter(m => !m.user_id).map(m => (
                   <option key={m.id} value={m.id}>{m.name}</option>
                 ))}
               </select>
               <button type="submit" className="btn-primary" style={{ padding: '0.625rem 1.25rem', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
-                Luo käyttäjä
+                {t('settings.createUserBtn')}
               </button>
             </form>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.75rem' }}>
-              Käyttäjä saa väliaikaisen salasanan ja joutuu vaihtamaan sen ensimmäisellä kirjautumisella.
+              {t('settings.tempPasswordNote')}
             </p>
           </div>
         </div>
@@ -323,11 +323,11 @@ export default function SettingsPage() {
       {tab === 'invite' && family && (
         <div style={{ maxWidth: '500px' }}>
           <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Kutsukoodi</label>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('settings.inviteCode')}</label>
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
               <code style={{ flex: 1, padding: '0.75rem 1rem', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', fontSize: '1.1rem', letterSpacing: '0.1em', color: 'var(--accent)' }}>{family.invite_code}</code>
             </div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Kutsulinkki</label>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('settings.inviteLink')}</label>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <input
                 readOnly
@@ -336,11 +336,11 @@ export default function SettingsPage() {
                 onClick={e => (e.target as HTMLInputElement).select()}
               />
               <button className="btn-primary" style={{ padding: '0.625rem 1.25rem', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, whiteSpace: 'nowrap' }} onClick={copyInvite}>
-                {copied ? '✓ Kopioitu!' : '📋 Kopioi'}
+                {copied ? t('settings.copied') : t('settings.copy')}
               </button>
             </div>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '1rem' }}>
-              📧 Sähköpostikutsut tulossa pian
+              {t('settings.emailInvitesSoon')}
             </p>
           </div>
         </div>
@@ -349,7 +349,7 @@ export default function SettingsPage() {
       {tab === 'general' && (
         <div style={{ maxWidth: '500px' }}>
           <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Perheen nimi</label>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('settings.familyName')}</label>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <input
                 value={familyName}
@@ -358,7 +358,7 @@ export default function SettingsPage() {
                 onKeyDown={e => { if (e.key === 'Enter') saveFamilyName(); }}
               />
               <button className="btn-primary" style={{ padding: '0.625rem 1.25rem', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }} onClick={saveFamilyName} disabled={saving}>
-                {saving ? 'Tallennetaan...' : 'Tallenna'}
+                {saving ? t('settings.saving') : t('settings.save')}
               </button>
             </div>
           </div>

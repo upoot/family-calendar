@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 
 export default function LoginPage() {
+  const { t } = useTranslation();
   const { login } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -27,19 +29,19 @@ export default function LoginPage() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <h1>📅 Perheen kalenteri</h1>
-        <h2>Kirjaudu sisään</h2>
+        <h1>📅 {t('app.title')}</h1>
+        <h2>{t('login.title')}</h2>
         {error && <div className="auth-error">{error}</div>}
         <form onSubmit={handleSubmit}>
-          <label>Sähköposti</label>
+          <label>{t('login.email')}</label>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus />
-          <label>Salasana</label>
+          <label>{t('login.password')}</label>
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
           <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? 'Kirjaudutaan...' : 'Kirjaudu'}
+            {loading ? t('login.loading') : t('login.submit')}
           </button>
         </form>
-        <p className="auth-link">Ei tiliä? <Link to="/register">Rekisteröidy</Link></p>
+        <p className="auth-link">{t('login.noAccount')} <Link to="/register">{t('login.register')}</Link></p>
       </div>
     </div>
   );
