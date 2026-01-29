@@ -97,9 +97,7 @@ export default function NLPBar({ familyId, token, onAction }: Props) {
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
-          placeholder={memberNames && memberNames.length > 0 
-            ? `kauppa: maitoa / tehtävä: pese auto ${memberNames[0]} / varaa: treeni ti klo 17`
-            : t('nlp.placeholder')}
+          placeholder="kauppa: maitoa / tehtävä: pese auto / varaa: treeni ti klo 17"
           className="nlp-input"
           disabled={loading}
         />
