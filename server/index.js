@@ -141,6 +141,7 @@ if (catCount === 0) {
   ins.run('Harkat', '🏃');
   ins.run('Työ', '💼');
   ins.run('Koulu', '📚');
+  ins.run('Koe', '📝');
   ins.run('Sali', '💪');
   ins.run('Muu', '📌');
 }
@@ -329,7 +330,7 @@ app.post('/api/families', authMiddleware, (req, res) => {
 
     // Seed default categories for the new family
     const catSeed = db.prepare('INSERT INTO categories (name, icon, family_id, display_order) VALUES (?, ?, ?, ?)');
-    const defaultCats = [['Harkat', '🏃', 1], ['Työ', '💼', 2], ['Koulu', '📚', 3], ['Sali', '💪', 4], ['Muu', '📌', 5]];
+    const defaultCats = [['Harkat', '🏃', 1], ['Työ', '💼', 2], ['Koulu', '📚', 3], ['Koe', '📝', 4], ['Sali', '💪', 5], ['Muu', '📌', 6]];
     for (const [catName, catIcon, catOrder] of defaultCats) {
       catSeed.run(catName, catIcon, familyId, catOrder);
     }
