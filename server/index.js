@@ -864,25 +864,45 @@ app.post('/api/events/copy-week', authMiddleware, (req, res) => {
 // ── NL Parser ───────────────────────────────────────────────────────────────
 
 const COMMANDS = {
-  shop: ['kauppalist', 'ostoslist', 'kauppaan', 'buy', 'shop', 'grocery'],
-  todo: ['todo', 'tehtävä', 'muista', 'muistutus', 'pitää', 'täytyy', 'task'],
-  cancel: ['peru', 'poista', 'peruuta', 'cancel', 'remove', 'delete'],
-  move: ['siirrä', 'muuta', 'vaihda', 'move', 'reschedule'],
-  query: ['milloin', 'koska', 'onko', 'when', 'sopii', 'voisi'],
-  create: ['varaa', 'lisää', 'luo', 'uusi', 'laita', 'add', 'create', 'book'],
+  shop: ['kauppalist', 'ostoslist', 'kauppaan', 'ruokalist', 'buy', 'shop', 'grocery'],
+  todo: ['todo', 'tehtävä', 'muista', 'muistutus', 'pitää', 'täytyy', 'task', 'hoida', 'tee ', 'tekis', 'tarvi'],
+  cancel: ['peru', 'peruuta', 'cancel'],
+  move: ['siirrä', 'vaihda', 'move', 'reschedule'],
+  query: ['milloin', 'koska', 'onko', 'when', 'sopii', 'voisi', 'ehdi'],
+  event: ['varaa', 'harkat', 'treeni', 'matsi', 'peli', 'koe', 'tentti', 'book'],
 };
 
+// Time-related words that hint at calendar events
+const TIME_HINTS = /\b(klo|kello|\d{1,2}[:.]\d{2}|\d{1,2}\s*(am|pm)|maanantai|tiistai|keskiviikko|torstai|perjantai|lauantai|sunnuntai|monday|tuesday|wednesday|thursday|friday|saturday|sunday|huomenna|ylihuomenna|tomorrow|ensi\s+viiko)/i;
+
 function detectIntent(text) {
-  const words = text.toLowerCase().split(/\s+/);
+  const lower = text.toLowerCase();
+  const words = lower.split(/\s+/);
   const matchesAny = (keywords) =>
-    keywords.some(kw => words.some(w => w.startsWith(kw)) || text.toLowerCase().includes(kw));
+    keywords.some(kw => words.some(w => w.startsWith(kw)) || lower.includes(kw));
+
+  // Specific intents first
   if (matchesAny(COMMANDS.shop)) return 'add_shopping';
-  if (matchesAny(COMMANDS.todo)) return 'add_todo';
   if (matchesAny(COMMANDS.cancel)) return 'cancel_event';
   if (matchesAny(COMMANDS.move)) return 'move_event';
   if (matchesAny(COMMANDS.query)) return 'query_availability';
-  if (matchesAny(COMMANDS.create)) return 'create_event';
-  return 'create_event';
+  if (matchesAny(COMMANDS.event)) return 'create_event';
+
+  // If it mentions a time/day, it's probably a calendar event
+  if (TIME_HINTS.test(text)) return 'create_event';
+
+  // Check todo keywords
+  if (matchesAny(COMMANDS.todo)) return 'add_todo';
+
+  // Default: if "lisää" + shopping context → shopping, otherwise todo
+  if (lower.includes('lisää') || lower.includes('add')) {
+    // Could be either — check for food/product words
+    const foodWords = ['maito', 'leipä', 'juusto', 'kana', 'liha', 'banaani', 'omena', 'jogurtti', 'voi', 'kahvi', 'mehu', 'kala', 'peruna', 'tomaatti', 'kurkku', 'paprika', 'sipuli', 'kananmuna', 'riisi', 'pasta', 'jauheliha', 'kinkku', 'juoma', 'olut', 'vessapaperi', 'tiskiaine', 'pesuaine', 'shampoo', 'saippua', 'hammastahna'];
+    if (foodWords.some(fw => lower.includes(fw))) return 'add_shopping';
+  }
+
+  // Fallback: treat as todo (most useful default for quick input)
+  return 'add_todo';
 }
 
 function extractMember(text, members) {

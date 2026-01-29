@@ -54,10 +54,25 @@ export default function NLPBar({ familyId, token, onAction }: Props) {
           break;
         }
         case 'create_event':
-          setStatus({ text: `📅 "${parsed.title || input}" — käytä kalenteria lisäämiseen toistaiseksi`, type: 'info' });
+          setStatus({ text: `📅 "${parsed.title || input}" — klikkaa kalenterista solua lisäämiseen`, type: 'info' });
+          break;
+        case 'query_availability':
+          setStatus({ text: `🔍 "${parsed.title || input}" — haku tulossa pian`, type: 'info' });
           break;
         default:
-          setStatus({ text: `🤔 En tunnistanut: "${input}"`, type: 'info' });
+          // Treat unknown as todo
+          {
+            const now = new Date();
+            const jan4 = new Date(now.getFullYear(), 0, 4);
+            const dayDiff = (now.getTime() - jan4.getTime()) / 86400000;
+            const weekNum = Math.ceil((dayDiff + jan4.getDay() + 1) / 7);
+            const week = `${now.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+            await fetch(`/api/families/${familyId}/todos`, {
+              method: 'POST', headers,
+              body: JSON.stringify({ title: input, week }),
+            });
+            setStatus({ text: `✅ Tehtävä lisätty: ${input}`, type: 'success' });
+          }
       }
 
       setInput('');
