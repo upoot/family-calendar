@@ -54,7 +54,9 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS categories (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
-    icon TEXT
+    icon TEXT,
+    family_id INTEGER REFERENCES families(id),
+    display_order INTEGER DEFAULT 0
   );
   CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -111,6 +113,10 @@ db.exec(`
 // Add family_id to members and events
 try { db.exec(`ALTER TABLE members ADD COLUMN family_id INTEGER REFERENCES families(id)`); } catch {}
 try { db.exec(`ALTER TABLE events ADD COLUMN family_id INTEGER REFERENCES families(id)`); } catch {}
+
+// Add family_id and display_order to categories
+try { db.exec(`ALTER TABLE categories ADD COLUMN family_id INTEGER REFERENCES families(id)`); } catch {}
+try { db.exec(`ALTER TABLE categories ADD COLUMN display_order INTEGER DEFAULT 0`); } catch {}
 
 // Add user management columns
 try { db.exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`); } catch {}
@@ -321,6 +327,13 @@ app.post('/api/families', authMiddleware, (req, res) => {
       });
     }
 
+    // Seed default categories for the new family
+    const catSeed = db.prepare('INSERT INTO categories (name, icon, family_id, display_order) VALUES (?, ?, ?, ?)');
+    const defaultCats = [['Harkat', '🏃', 1], ['Työ', '💼', 2], ['Koulu', '📚', 3], ['Sali', '💪', 4], ['Muu', '📌', 5]];
+    for (const [catName, catIcon, catOrder] of defaultCats) {
+      catSeed.run(catName, catIcon, familyId, catOrder);
+    }
+
     const family = db.prepare('SELECT * FROM families WHERE id = ?').get(familyId);
     // Attach owner info
     const owner = db.prepare('SELECT id, name, email FROM users WHERE id = ?').get(ownerId);
@@ -488,6 +501,7 @@ app.delete('/api/admin/superadmins/:id', authMiddleware, (req, res) => {
 app.delete('/api/admin/families/:id', authMiddleware, (req, res) => {
   if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Admin only' });
   db.prepare('DELETE FROM family_users WHERE family_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM categories WHERE family_id = ?').run(req.params.id);
   db.prepare('DELETE FROM events WHERE family_id = ?').run(req.params.id);
   db.prepare('DELETE FROM members WHERE family_id = ?').run(req.params.id);
   db.prepare('DELETE FROM families WHERE id = ?').run(req.params.id);
@@ -562,10 +576,65 @@ app.delete('/api/members/:id', authMiddleware, (req, res) => {
   res.json({ ok: true });
 });
 
-// ── Categories ──────────────────────────────────────────────────────────────
+// ── Categories (per-family) ──────────────────────────────────────────────────
 
 app.get('/api/categories', authMiddleware, (req, res) => {
+  const { familyId } = req.query;
+  if (familyId) {
+    // Check access
+    if (req.user.role !== 'superadmin') {
+      const m = db.prepare('SELECT 1 FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, familyId);
+      if (!m) return res.status(403).json({ error: 'No access' });
+    }
+    // Return family categories, or global defaults if family has none
+    const familyCats = db.prepare('SELECT * FROM categories WHERE family_id = ? ORDER BY display_order, id').all(familyId);
+    if (familyCats.length > 0) return res.json(familyCats);
+    // Fallback to global (family_id IS NULL)
+    return res.json(db.prepare('SELECT * FROM categories WHERE family_id IS NULL ORDER BY id').all());
+  }
+  // No familyId — return all (backward compat)
   res.json(db.prepare('SELECT * FROM categories ORDER BY id').all());
+});
+
+app.post('/api/categories', authMiddleware, (req, res) => {
+  const { name, icon, family_id } = req.body;
+  if (!name || !family_id) return res.status(400).json({ error: 'name and family_id required' });
+  if (req.user.role !== 'superadmin') {
+    const m = db.prepare('SELECT role FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, family_id);
+    if (!m || m.role !== 'owner') return res.status(403).json({ error: 'Only owner can manage categories' });
+  }
+  const maxOrder = db.prepare('SELECT MAX(display_order) as m FROM categories WHERE family_id = ?').get(family_id).m || 0;
+  const r = db.prepare('INSERT INTO categories (name, icon, family_id, display_order) VALUES (?, ?, ?, ?)').run(name, icon || '📌', family_id, maxOrder + 1);
+  res.status(201).json(db.prepare('SELECT * FROM categories WHERE id = ?').get(r.lastInsertRowid));
+});
+
+app.put('/api/categories/:id', authMiddleware, (req, res) => {
+  const cat = db.prepare('SELECT * FROM categories WHERE id = ?').get(req.params.id);
+  if (!cat) return res.status(404).json({ error: 'Not found' });
+  if (!cat.family_id) return res.status(403).json({ error: 'Cannot edit global categories' });
+  if (req.user.role !== 'superadmin') {
+    const m = db.prepare('SELECT role FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, cat.family_id);
+    if (!m || m.role !== 'owner') return res.status(403).json({ error: 'Only owner can manage categories' });
+  }
+  const { name, icon } = req.body;
+  if (name) db.prepare('UPDATE categories SET name = ? WHERE id = ?').run(name, req.params.id);
+  if (icon) db.prepare('UPDATE categories SET icon = ? WHERE id = ?').run(icon, req.params.id);
+  res.json(db.prepare('SELECT * FROM categories WHERE id = ?').get(req.params.id));
+});
+
+app.delete('/api/categories/:id', authMiddleware, (req, res) => {
+  const cat = db.prepare('SELECT * FROM categories WHERE id = ?').get(req.params.id);
+  if (!cat) return res.status(404).json({ error: 'Not found' });
+  if (!cat.family_id) return res.status(403).json({ error: 'Cannot delete global categories' });
+  if (req.user.role !== 'superadmin') {
+    const m = db.prepare('SELECT role FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, cat.family_id);
+    if (!m || m.role !== 'owner') return res.status(403).json({ error: 'Only owner can manage categories' });
+  }
+  // Check if any events use this category
+  const eventCount = db.prepare('SELECT COUNT(*) as c FROM events WHERE category_id = ?').get(req.params.id).c;
+  if (eventCount > 0) return res.status(409).json({ error: 'Category is in use by events', eventCount });
+  db.prepare('DELETE FROM categories WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
 });
 
 // ── Events (scoped by family) ───────────────────────────────────────────────
