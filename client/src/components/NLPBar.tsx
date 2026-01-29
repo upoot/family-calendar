@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 interface Props {
   familyId: number | null;
   token: string | null;
-  memberNames: string[];
+  memberNames?: string[];
   onAction: () => void;
 }
 
@@ -97,9 +97,7 @@ export default function NLPBar({ familyId, token, onAction }: Props) {
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
-          placeholder={memberNames.length
-            ? `kauppa: maitoa / tehtävä: pese auto ${memberNames[0]} / varaa: treeni ti klo 17`
-            : t('nlp.placeholder')}
+          placeholder={t('nlp.placeholder')}
           className="nlp-input"
           disabled={loading}
         />
