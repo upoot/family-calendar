@@ -85,6 +85,8 @@ db.exec(`
     password_hash TEXT NOT NULL,
     name TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'user',
+    must_change_password INTEGER NOT NULL DEFAULT 0,
+    created_by INTEGER REFERENCES users(id),
     created_at TEXT DEFAULT (datetime('now'))
   );
   CREATE TABLE IF NOT EXISTS families (
@@ -106,6 +108,14 @@ db.exec(`
 // Add family_id to members and events
 try { db.exec(`ALTER TABLE members ADD COLUMN family_id INTEGER REFERENCES families(id)`); } catch {}
 try { db.exec(`ALTER TABLE events ADD COLUMN family_id INTEGER REFERENCES families(id)`); } catch {}
+
+// Add user management columns
+try { db.exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN created_by INTEGER REFERENCES users(id)`); } catch {}
+try { db.exec(`ALTER TABLE members ADD COLUMN user_id INTEGER REFERENCES users(id)`); } catch {}
+
+// Migrate old 'admin' role to 'superadmin'
+try { db.exec(`UPDATE users SET role = 'superadmin' WHERE role = 'admin'`); } catch {}
 
 // ── Seed ────────────────────────────────────────────────────────────────────
 
@@ -148,7 +158,7 @@ function requireFamily(req, res, next) {
   const familyId = parseInt(req.params.familyId || req.query.familyId);
   if (!familyId) return res.status(400).json({ error: 'family_id required' });
   // Admin can access any family
-  if (req.user.role === 'admin') {
+  if (req.user.role === 'superadmin') {
     req.familyId = familyId;
     return next();
   }
@@ -174,11 +184,11 @@ app.post('/api/auth/register', authLimiter, (req, res) => {
   if (existing) return res.status(409).json({ error: 'Email already registered' });
   // Ensimmäinen käyttäjä saa admin-roolin
   const userCount = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
-  const role = userCount === 0 ? 'admin' : 'user';
+  const role = userCount === 0 ? 'superadmin' : 'user';
   const hash = bcrypt.hashSync(password, 10);
   const r = db.prepare('INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, ?)').run(email, hash, name, role);
   const user = db.prepare('SELECT id, email, name, role FROM users WHERE id = ?').get(r.lastInsertRowid);
-  if (role === 'admin') console.log(`✅ First user ${email} registered as admin`);
+  if (role === 'superadmin') console.log(`✅ First user ${email} registered as superadmin`);
   const token = signToken(user);
   res.status(201).json({ token, user });
 });
@@ -196,12 +206,34 @@ app.post('/api/auth/login', authLimiter, (req, res) => {
   res.json({ token, user: safe });
 });
 
+// ── Change password ─────────────────────────────────────────────────────────
+
+app.post('/api/auth/change-password', authMiddleware, (req, res) => {
+  if (!req.is('application/json')) return res.status(415).json({ error: 'Content-Type must be application/json' });
+  const { oldPassword, newPassword } = req.body;
+  if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
+    return res.status(400).json({ error: 'New password must be at least 8 characters' });
+  }
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  // If must_change_password, oldPassword is optional (temp password flow)
+  if (!user.must_change_password) {
+    if (!oldPassword || !bcrypt.compareSync(oldPassword, user.password_hash)) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+  }
+  const hash = bcrypt.hashSync(newPassword, 10);
+  db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?').run(hash, req.user.id);
+  const token = signToken(user);
+  res.json({ ok: true, token });
+});
+
 app.post('/api/auth/logout', (req, res) => {
   res.json({ ok: true });
 });
 
 app.get('/api/auth/me', authMiddleware, (req, res) => {
-  const user = db.prepare('SELECT id, email, name, role, created_at FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare('SELECT id, email, name, role, must_change_password, created_at FROM users WHERE id = ?').get(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const families = db.prepare(`
     SELECT f.*, fu.role as user_role FROM families f
@@ -214,7 +246,7 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
 // ── Family routes ───────────────────────────────────────────────────────────
 
 app.get('/api/families', authMiddleware, (req, res) => {
-  if (req.user.role === 'admin') {
+  if (req.user.role === 'superadmin') {
     res.json(db.prepare('SELECT * FROM families ORDER BY id').all());
   } else {
     res.json(db.prepare(`
@@ -236,7 +268,7 @@ app.post('/api/families', authMiddleware, (req, res) => {
 });
 
 app.put('/api/families/:familyId', authMiddleware, requireFamily, (req, res) => {
-  if (req.user.role !== 'admin' && req.familyRole !== 'owner') {
+  if (req.user.role !== 'superadmin' && req.familyRole !== 'owner') {
     return res.status(403).json({ error: 'Only owner can edit family' });
   }
   const { name } = req.body;
@@ -277,22 +309,71 @@ app.post('/api/invite/:code', authMiddleware, (req, res) => {
   res.json({ message: 'Joined family', family_id: family.id });
 });
 
+// ── Family user management ───────────────────────────────────────────────────
+
+app.post('/api/families/:familyId/users', authMiddleware, requireFamily, (req, res) => {
+  // Only family owner or superadmin can create users
+  if (req.user.role !== 'superadmin' && req.familyRole !== 'owner') {
+    return res.status(403).json({ error: 'Only family admin can create users' });
+  }
+  const { name, email, password, memberId } = req.body;
+  if (!name || !email || !password) return res.status(400).json({ error: 'name, email, password required' });
+  if (typeof password !== 'string' || password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  if (existing) return res.status(409).json({ error: 'Email already registered' });
+
+  const hash = bcrypt.hashSync(password, 10);
+  const r = db.prepare('INSERT INTO users (email, password_hash, name, role, must_change_password, created_by) VALUES (?, ?, ?, ?, 1, ?)').run(email, hash, name, 'user', req.user.id);
+  const userId = r.lastInsertRowid;
+
+  // Add to family
+  db.prepare('INSERT INTO family_users (user_id, family_id, role) VALUES (?, ?, ?)').run(userId, req.familyId, 'member');
+
+  // Link to member if specified
+  if (memberId) {
+    const member = db.prepare('SELECT id FROM members WHERE id = ? AND family_id = ?').get(memberId, req.familyId);
+    if (member) {
+      db.prepare('UPDATE members SET user_id = ? WHERE id = ?').run(userId, memberId);
+    }
+  }
+
+  const user = db.prepare('SELECT id, email, name, role, must_change_password, created_at FROM users WHERE id = ?').get(userId);
+  res.status(201).json(user);
+});
+
+app.get('/api/families/:familyId/users', authMiddleware, requireFamily, (req, res) => {
+  const users = db.prepare(`
+    SELECT u.id, u.email, u.name, u.role, fu.role as family_role, u.must_change_password, u.created_at
+    FROM users u
+    JOIN family_users fu ON u.id = fu.user_id
+    WHERE fu.family_id = ?
+    ORDER BY u.id
+  `).all(req.familyId);
+  
+  // Also get members with their user_id links
+  const members = db.prepare('SELECT id, name, color, user_id FROM members WHERE family_id = ?').all(req.familyId);
+  
+  res.json({ users, members });
+});
+
 // ── Admin routes ────────────────────────────────────────────────────────────
 
 app.get('/api/admin/users', authMiddleware, (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Admin only' });
   res.json(db.prepare('SELECT id, email, name, role, created_at FROM users ORDER BY id').all());
 });
 
 app.delete('/api/admin/users/:id', authMiddleware, (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Admin only' });
   db.prepare('DELETE FROM family_users WHERE user_id = ?').run(req.params.id);
   db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 
 app.delete('/api/admin/families/:id', authMiddleware, (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Admin only' });
   db.prepare('DELETE FROM family_users WHERE family_id = ?').run(req.params.id);
   db.prepare('DELETE FROM events WHERE family_id = ?').run(req.params.id);
   db.prepare('DELETE FROM members WHERE family_id = ?').run(req.params.id);
@@ -306,7 +387,7 @@ app.get('/api/members', authMiddleware, (req, res) => {
   const familyId = req.query.familyId;
   if (!familyId) return res.status(400).json({ error: 'familyId required' });
   // Check access
-  if (req.user.role !== 'admin') {
+  if (req.user.role !== 'superadmin') {
     const m = db.prepare('SELECT 1 FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, familyId);
     if (!m) return res.status(403).json({ error: 'No access' });
   }
@@ -317,7 +398,7 @@ app.post('/api/members', authMiddleware, (req, res) => {
   const { name, color, family_id } = req.body;
   if (!name || !color || !family_id) return res.status(400).json({ error: 'name, color, family_id required' });
   // Check access
-  if (req.user.role !== 'admin') {
+  if (req.user.role !== 'superadmin') {
     const m = db.prepare('SELECT role FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, family_id);
     if (!m || m.role !== 'owner') return res.status(403).json({ error: 'Only owner can add members' });
   }
@@ -329,7 +410,7 @@ app.post('/api/members', authMiddleware, (req, res) => {
 app.put('/api/members/reorder', authMiddleware, (req, res) => {
   const { family_id, order } = req.body; // order: [{id, display_order}]
   if (!family_id || !order) return res.status(400).json({ error: 'family_id and order required' });
-  if (req.user.role !== 'admin') {
+  if (req.user.role !== 'superadmin') {
     const m = db.prepare('SELECT role FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, family_id);
     if (!m || m.role !== 'owner') return res.status(403).json({ error: 'Only owner can reorder members' });
   }
@@ -346,7 +427,7 @@ app.put('/api/members/reorder', authMiddleware, (req, res) => {
 app.put('/api/members/:id', authMiddleware, (req, res) => {
   const member = db.prepare('SELECT family_id FROM members WHERE id = ?').get(req.params.id);
   if (!member) return res.status(404).json({ error: 'Not found' });
-  if (req.user.role !== 'admin') {
+  if (req.user.role !== 'superadmin') {
     const m = db.prepare('SELECT role FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, member.family_id);
     if (!m || m.role !== 'owner') return res.status(403).json({ error: 'Only owner can edit members' });
   }
@@ -359,7 +440,7 @@ app.put('/api/members/:id', authMiddleware, (req, res) => {
 app.delete('/api/members/:id', authMiddleware, (req, res) => {
   const member = db.prepare('SELECT family_id FROM members WHERE id = ?').get(req.params.id);
   if (!member) return res.status(404).json({ error: 'Not found' });
-  if (req.user.role !== 'admin') {
+  if (req.user.role !== 'superadmin') {
     const m = db.prepare('SELECT role FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, member.family_id);
     if (!m || m.role !== 'owner') return res.status(403).json({ error: 'Only owner can delete members' });
   }
@@ -381,7 +462,7 @@ app.get('/api/events', authMiddleware, (req, res) => {
   if (!week) return res.status(400).json({ error: 'week parameter required' });
   if (!familyId) return res.status(400).json({ error: 'familyId required' });
 
-  if (req.user.role !== 'admin') {
+  if (req.user.role !== 'superadmin') {
     const m = db.prepare('SELECT 1 FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, familyId);
     if (!m) return res.status(403).json({ error: 'No access' });
   }
@@ -410,7 +491,7 @@ app.post('/api/events', authMiddleware, (req, res) => {
   const { member_id, category_id, title, start_time, end_time, date, weekday, location, description, is_recurring, ride_outbound, ride_return, family_id } = req.body;
   if (!family_id) return res.status(400).json({ error: 'family_id required' });
 
-  if (req.user.role !== 'admin') {
+  if (req.user.role !== 'superadmin') {
     const m = db.prepare('SELECT 1 FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, family_id);
     if (!m) return res.status(403).json({ error: 'No access' });
   }
@@ -433,7 +514,7 @@ app.put('/api/events/:id', authMiddleware, (req, res) => {
   const existing = db.prepare('SELECT family_id FROM events WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
-  if (req.user.role !== 'admin') {
+  if (req.user.role !== 'superadmin') {
     const m = db.prepare('SELECT 1 FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, existing.family_id);
     if (!m) return res.status(403).json({ error: 'No access' });
   }
@@ -456,7 +537,7 @@ app.patch('/api/events/:id', authMiddleware, (req, res) => {
   const existing = db.prepare('SELECT family_id FROM events WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
-  if (req.user.role !== 'admin') {
+  if (req.user.role !== 'superadmin') {
     const m = db.prepare('SELECT 1 FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, existing.family_id);
     if (!m) return res.status(403).json({ error: 'No access' });
   }
@@ -484,7 +565,7 @@ app.delete('/api/events/:id', authMiddleware, (req, res) => {
   const existing = db.prepare('SELECT family_id FROM events WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
-  if (req.user.role !== 'admin') {
+  if (req.user.role !== 'superadmin') {
     const m = db.prepare('SELECT 1 FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, existing.family_id);
     if (!m) return res.status(403).json({ error: 'No access' });
   }

@@ -13,6 +13,7 @@ interface User {
   email: string;
   name: string;
   role: string;
+  must_change_password: number;
   families: Family[];
 }
 
