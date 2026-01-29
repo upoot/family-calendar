@@ -55,6 +55,7 @@ export async function createMember(request: any, token: string, data: { name: st
 
 export function cleanDb(db: any) {
   db.exec('DELETE FROM events');
+  db.exec('DELETE FROM categories WHERE family_id IS NOT NULL');
   db.exec('DELETE FROM members');
   db.exec('DELETE FROM family_users');
   db.exec('DELETE FROM families');
