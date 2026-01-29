@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -15,6 +16,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
+      navigate('/');
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
