@@ -19,9 +19,9 @@ export default function RegisterPage() {
     setError('');
     setLoading(true);
     try {
-      await register(email, password, name);
+      const targetRoute = await register(email, password, name);
       const redirect = searchParams.get('redirect');
-      navigate(redirect || '/');
+      navigate(redirect || targetRoute);
     } catch (err: any) {
       setError(err.message || 'Registration failed');
     } finally {
