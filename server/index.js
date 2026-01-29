@@ -586,11 +586,15 @@ app.get('/api/categories', authMiddleware, (req, res) => {
       const m = db.prepare('SELECT 1 FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, familyId);
       if (!m) return res.status(403).json({ error: 'No access' });
     }
-    // Return family categories, or global defaults if family has none
-    const familyCats = db.prepare('SELECT * FROM categories WHERE family_id = ? ORDER BY display_order, id').all(familyId);
-    if (familyCats.length > 0) return res.json(familyCats);
-    // Fallback to global (family_id IS NULL)
-    return res.json(db.prepare('SELECT * FROM categories WHERE family_id IS NULL ORDER BY id').all());
+    // If family has no own categories, migrate global defaults to family
+    let familyCats = db.prepare('SELECT * FROM categories WHERE family_id = ? ORDER BY display_order, id').all(familyId);
+    if (familyCats.length === 0) {
+      const globals = db.prepare('SELECT name, icon FROM categories WHERE family_id IS NULL ORDER BY id').all();
+      const seedCat = db.prepare('INSERT INTO categories (name, icon, family_id, display_order) VALUES (?, ?, ?, ?)');
+      globals.forEach((g, i) => seedCat.run(g.name, g.icon, familyId, i + 1));
+      familyCats = db.prepare('SELECT * FROM categories WHERE family_id = ? ORDER BY display_order, id').all(familyId);
+    }
+    return res.json(familyCats);
   }
   // No familyId — return all (backward compat)
   res.json(db.prepare('SELECT * FROM categories ORDER BY id').all());
@@ -602,6 +606,13 @@ app.post('/api/categories', authMiddleware, (req, res) => {
   if (req.user.role !== 'superadmin') {
     const m = db.prepare('SELECT role FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, family_id);
     if (!m || m.role !== 'owner') return res.status(403).json({ error: 'Only owner can manage categories' });
+  }
+  // If family has no categories yet, copy global defaults first
+  const existingCats = db.prepare('SELECT COUNT(*) as c FROM categories WHERE family_id = ?').get(family_id).c;
+  if (existingCats === 0) {
+    const globals = db.prepare('SELECT name, icon FROM categories WHERE family_id IS NULL ORDER BY id').all();
+    const seedCat = db.prepare('INSERT INTO categories (name, icon, family_id, display_order) VALUES (?, ?, ?, ?)');
+    globals.forEach((g, i) => seedCat.run(g.name, g.icon, family_id, i + 1));
   }
   const maxOrder = db.prepare('SELECT MAX(display_order) as m FROM categories WHERE family_id = ?').get(family_id).m || 0;
   const r = db.prepare('INSERT INTO categories (name, icon, family_id, display_order) VALUES (?, ?, ?, ?)').run(name, icon || '📌', family_id, maxOrder + 1);
