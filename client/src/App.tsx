@@ -8,6 +8,9 @@ import LanguageSwitcher from './components/LanguageSwitcher';
 import { useAuth } from './context/AuthContext';
 import { Link, Navigate } from 'react-router-dom';
 import AppNav from './components/AppNav';
+import NLPBar from './components/NLPBar';
+import TodoWidget from './components/TodoWidget';
+import ShoppingWidget from './components/ShoppingWidget';
 import type { Member, Category, CalendarEvent, EventFormData } from './types';
 
 function getMonday(d: Date): Date {
@@ -48,6 +51,8 @@ export default function App() {
   const [activeEvent, setActiveEvent] = useState<CalendarEvent | null>(null);
   const [copyWeekModal, setCopyWeekModal] = useState(false);
   const [copyWeekMsg, setCopyWeekMsg] = useState<string | null>(null);
+  const [widgetRefresh, setWidgetRefresh] = useState(0);
+  const refreshWidgets = () => setWidgetRefresh(k => k + 1);
 
   const weekStr = fmt(weekStart);
   const authHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
@@ -217,6 +222,10 @@ export default function App() {
           </div>
         </header>
 
+        <NLPBar familyId={currentFamilyId} token={token} onAction={() => { fetchEvents(); refreshWidgets(); }} />
+
+        <div className="dashboard-layout">
+        <div className="dashboard-main">
         <div className="calendar-grid">
           <div className="grid-header corner"></div>
           {weekDates.map((d, i) => (
@@ -254,6 +263,13 @@ export default function App() {
             </>
           ))}
         </div>
+        </div>{/* end dashboard-main */}
+
+        <aside className="dashboard-sidebar">
+          <TodoWidget familyId={currentFamilyId} token={token} refreshKey={widgetRefresh} />
+          <ShoppingWidget familyId={currentFamilyId} token={token} refreshKey={widgetRefresh} />
+        </aside>
+        </div>{/* end dashboard-layout */}
 
         <DragOverlay>
           {activeEvent && (
