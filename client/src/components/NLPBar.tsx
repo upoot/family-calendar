@@ -17,7 +17,7 @@ function getISOWeek(): string {
   return `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
 }
 
-export default function NLPBar({ familyId, token, onAction }: Props) {
+export default function NLPBar({ familyId, token, memberNames = [], onAction }: Props) {
   const [input, setInput] = useState('');
   const [status, setStatus] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -97,7 +97,7 @@ export default function NLPBar({ familyId, token, onAction }: Props) {
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
-          placeholder={`kauppa: maitoa / tehtävä: pese auto ${memberNames?.[0] || '[henkilö]'} / varaa: treeni ti klo 17`}
+          placeholder={`kauppa: maitoa / tehtävä: pese auto${memberNames.length > 0 ? ` ${memberNames[0]}` : ''} / varaa: treeni ti klo 17`}
           className="nlp-input"
           disabled={loading}
         />
