@@ -17,8 +17,8 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
-      navigate('/');
+      const targetRoute = await login(email, password);
+      navigate(targetRoute);
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
