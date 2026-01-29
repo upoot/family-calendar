@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function ChangePasswordPage() {
+  const { t } = useTranslation();
   const { token, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [newPassword, setNewPassword] = useState('');
@@ -14,11 +16,11 @@ export default function ChangePasswordPage() {
     e.preventDefault();
     setError('');
     if (newPassword.length < 8) {
-      setError('Salasanan on oltava vähintään 8 merkkiä');
+      setError(t('changePassword.passwordMinLength'));
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError('Salasanat eivät täsmää');
+      setError(t('changePassword.passwordMismatch'));
       return;
     }
     setLoading(true);
@@ -30,7 +32,7 @@ export default function ChangePasswordPage() {
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Salasanan vaihto epäonnistui');
+        throw new Error(data.error || t('changePassword.changeFailed'));
       }
       await refreshUser();
       navigate('/');
@@ -44,14 +46,14 @@ export default function ChangePasswordPage() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <h1>📅 Perheen kalenteri</h1>
-        <h2>Vaihda salasana</h2>
+        <h1>📅 {t('app.title')}</h1>
+        <h2>{t('changePassword.title')}</h2>
         <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', textAlign: 'center', fontSize: '0.85rem' }}>
-          Tilillesi on asetettu väliaikainen salasana. Vaihda se ennen jatkamista.
+          {t('changePassword.description')}
         </p>
         {error && <div className="auth-error">{error}</div>}
         <form onSubmit={handleSubmit}>
-          <label>Uusi salasana</label>
+          <label>{t('changePassword.newPassword')}</label>
           <input
             type="password"
             value={newPassword}
@@ -59,19 +61,19 @@ export default function ChangePasswordPage() {
             required
             minLength={8}
             autoFocus
-            placeholder="Vähintään 8 merkkiä"
+            placeholder={t('changePassword.newPasswordPlaceholder')}
           />
-          <label>Vahvista salasana</label>
+          <label>{t('changePassword.confirmPassword')}</label>
           <input
             type="password"
             value={confirmPassword}
             onChange={e => setConfirmPassword(e.target.value)}
             required
             minLength={8}
-            placeholder="Kirjoita salasana uudelleen"
+            placeholder={t('changePassword.confirmPasswordPlaceholder')}
           />
           <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? 'Vaihdetaan...' : 'Vaihda salasana'}
+            {loading ? t('changePassword.loading') : t('changePassword.submit')}
           </button>
         </form>
       </div>

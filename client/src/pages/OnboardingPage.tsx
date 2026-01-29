@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -18,6 +19,7 @@ interface MemberAccount {
 }
 
 export default function OnboardingPage() {
+  const { t } = useTranslation();
   const { token, refreshUser, setCurrentFamilyId } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -40,7 +42,7 @@ export default function OnboardingPage() {
     setError('');
     try {
       const res = await fetch('/api/families', { method: 'POST', headers, body: JSON.stringify({ name: familyName }) });
-      if (!res.ok) throw new Error('Perheen luonti epäonnistui');
+      if (!res.ok) throw new Error(t('onboarding.familyCreateFailed'));
       const family = await res.json();
       setFamilyId(family.id);
       setStep(2);
@@ -59,7 +61,7 @@ export default function OnboardingPage() {
         method: 'POST', headers,
         body: JSON.stringify({ name: newName, color: newColor, family_id: familyId }),
       });
-      if (!res.ok) throw new Error('Jäsenen lisäys epäonnistui');
+      if (!res.ok) throw new Error(t('onboarding.memberAddFailed'));
       const member = await res.json();
       setMembers(prev => [...prev, { id: member.id, name: member.name, color: member.color }]);
       setNewName('');
@@ -89,7 +91,7 @@ export default function OnboardingPage() {
   return (
     <div className="auth-page">
       <div className="auth-card" style={{ maxWidth: '500px' }}>
-        <h1>📅 Perheen kalenteri</h1>
+        <h1>📅 {t('app.title')}</h1>
         
         <div className="onboarding-steps">
           <div className={`onboarding-step ${step >= 1 ? 'active' : ''}`}>1</div>
@@ -105,15 +107,15 @@ export default function OnboardingPage() {
 
         {step === 1 && (
           <>
-            <h2>Luo perhe</h2>
+            <h2>{t('onboarding.createFamily')}</h2>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', textAlign: 'center' }}>
-              Anna perheellesi nimi aloittaaksesi.
+              {t('onboarding.createFamilyDesc')}
             </p>
             <form onSubmit={handleCreateFamily}>
-              <label>Perheen nimi</label>
-              <input value={familyName} onChange={e => setFamilyName(e.target.value)} placeholder="Esim. Virtaset" required autoFocus />
+              <label>{t('onboarding.familyName')}</label>
+              <input value={familyName} onChange={e => setFamilyName(e.target.value)} placeholder={t('onboarding.familyNamePlaceholder')} required autoFocus />
               <button type="submit" className="btn-primary" disabled={loading}>
-                {loading ? 'Luodaan...' : 'Seuraava →'}
+                {loading ? t('onboarding.creating') : t('onboarding.next')}
               </button>
             </form>
           </>
@@ -121,9 +123,9 @@ export default function OnboardingPage() {
 
         {step === 2 && (
           <>
-            <h2>Lisää perheenjäsenet</h2>
+            <h2>{t('onboarding.addMembers')}</h2>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', textAlign: 'center' }}>
-              Lisää jäsenet joille haluat omat rivit kalenteriin.
+              {t('onboarding.addMembersDesc')}
             </p>
 
             {members.length > 0 && (
@@ -143,7 +145,7 @@ export default function OnboardingPage() {
               <input
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
-                placeholder="Jäsenen nimi"
+                placeholder={t('onboarding.memberName')}
                 style={{ flex: 1, padding: '0.75rem 1rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.9rem' }}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addMember(); } }}
               />
@@ -154,20 +156,19 @@ export default function OnboardingPage() {
                 style={{ width: '44px', height: '44px', padding: '2px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', cursor: 'pointer' }}
               />
               <button type="button" className="btn-primary" style={{ padding: '0.625rem 1rem', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }} onClick={addMember} disabled={loading || !newName.trim()}>
-                Lisää
+                {t('onboarding.add')}
               </button>
             </div>
 
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button type="button" className="btn-cancel" style={{ flex: 1, padding: '0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }} onClick={() => setStep(1)}>
-                ← Takaisin
+                {t('onboarding.back')}
               </button>
               <button type="button" className="btn-primary" style={{ flex: 1, padding: '0.75rem', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }} onClick={() => {
-                // Initialize member accounts for step 3
                 setMemberAccounts(members.map(m => ({ memberId: m.id, email: '', password: '', enabled: false })));
                 setStep(3);
               }} disabled={members.length === 0}>
-                Seuraava →
+                {t('onboarding.next')}
               </button>
             </div>
           </>
@@ -175,9 +176,9 @@ export default function OnboardingPage() {
 
         {step === 3 && (
           <>
-            <h2>Luo käyttäjätilit jäsenille</h2>
+            <h2>{t('onboarding.createAccounts')}</h2>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', textAlign: 'center', fontSize: '0.85rem' }}>
-              Luo halutessasi kirjautumistilit perheenjäsenille. Voit ohittaa tämän vaiheen.
+              {t('onboarding.createAccountsDesc')}
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
@@ -212,7 +213,7 @@ export default function OnboardingPage() {
                             updated[idx] = { ...updated[idx], email: e.target.value };
                             setMemberAccounts(updated);
                           }}
-                          placeholder="Sähköposti"
+                          placeholder={t('onboarding.emailPlaceholder')}
                           style={{ padding: '0.5rem 0.75rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.85rem' }}
                         />
                         <input
@@ -224,7 +225,7 @@ export default function OnboardingPage() {
                             updated[idx] = { ...updated[idx], password: e.target.value };
                             setMemberAccounts(updated);
                           }}
-                          placeholder="Väliaikainen salasana (väh. 8 merkkiä)"
+                          placeholder={t('onboarding.tempPasswordPlaceholder')}
                           style={{ padding: '0.5rem 0.75rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.85rem' }}
                         />
                         {accountErrors[m.id] && <span style={{ color: 'var(--danger)', fontSize: '0.75rem' }}>{accountErrors[m.id]}</span>}
@@ -237,7 +238,7 @@ export default function OnboardingPage() {
 
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button type="button" className="btn-cancel" style={{ flex: 1, padding: '0.75rem', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }} onClick={() => setStep(4)}>
-                Ohita →
+                {t('onboarding.skip')}
               </button>
               <button type="button" className="btn-primary" style={{ flex: 1, padding: '0.75rem', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }} onClick={async () => {
                 const enabled = memberAccounts.filter(a => a.enabled);
@@ -246,7 +247,7 @@ export default function OnboardingPage() {
                 const errors: Record<number, string> = {};
                 for (const acc of enabled) {
                   if (!acc.email || !acc.password || acc.password.length < 8) {
-                    errors[acc.memberId] = !acc.email ? 'Sähköposti vaaditaan' : 'Salasanan on oltava väh. 8 merkkiä';
+                    errors[acc.memberId] = !acc.email ? t('onboarding.emailRequired') : t('onboarding.passwordMinLength');
                     continue;
                   }
                   try {
@@ -256,17 +257,17 @@ export default function OnboardingPage() {
                     });
                     if (!res.ok) {
                       const data = await res.json();
-                      errors[acc.memberId] = data.error || 'Virhe';
+                      errors[acc.memberId] = data.error || t('onboarding.error');
                     }
                   } catch {
-                    errors[acc.memberId] = 'Verkkovirhe';
+                    errors[acc.memberId] = t('onboarding.networkError');
                   }
                 }
                 setAccountErrors(errors);
                 setLoading(false);
                 if (Object.keys(errors).length === 0) setStep(4);
               }} disabled={loading}>
-                {loading ? 'Luodaan...' : 'Luo tilit ja jatka →'}
+                {loading ? t('onboarding.creating') : t('onboarding.createAndContinue')}
               </button>
             </div>
           </>
@@ -274,10 +275,9 @@ export default function OnboardingPage() {
 
         {step === 4 && (
           <>
-            <h2>✅ Valmis!</h2>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', textAlign: 'center' }}>
-              Perhe <strong>{familyName}</strong> on luotu {members.length} jäsenellä.
-            </p>
+            <h2>{t('onboarding.done')}</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', textAlign: 'center' }}
+               dangerouslySetInnerHTML={{ __html: t('onboarding.familyCreated', { name: familyName, count: members.length }) }} />
             <div className="onboarding-members" style={{ marginBottom: '1.5rem' }}>
               {members.map((m, i) => (
                 <div key={i} className="onboarding-member">
@@ -287,7 +287,7 @@ export default function OnboardingPage() {
               ))}
             </div>
             <button type="button" className="btn-primary" style={{ width: '100%', padding: '0.75rem', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: '0.9rem' }} onClick={handleFinish}>
-              Avaa kalenteri 📅
+              {t('onboarding.openCalendar')}
             </button>
           </>
         )}

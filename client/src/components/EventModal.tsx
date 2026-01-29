@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { CalendarEvent, EventFormData, Member, Category } from '../types';
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
 const RIDE_CATEGORIES = ['Harkat'];
 
 export default function EventModal({ event, members, categories, defaultMemberId, defaultDate, defaultWeekday, onSave, onDelete, onClose }: Props) {
+  const { t } = useTranslation();
   const [form, setForm] = useState<EventFormData>({
     member_id: event?.member_id ?? defaultMemberId ?? members[0]?.id ?? 1,
     category_id: event?.category_id ?? null,
@@ -50,66 +52,66 @@ export default function EventModal({ event, members, categories, defaultMemberId
   const selectedCategory = categories.find(c => c.id === form.category_id);
   const showRideFields = selectedCategory && RIDE_CATEGORIES.includes(selectedCategory.name);
 
-  const WEEKDAYS = ['Maanantai', 'Tiistai', 'Keskiviikko', 'Torstai', 'Perjantai', 'Lauantai', 'Sunnuntai'];
+  const WEEKDAYS = t('eventModal.weekdays', { returnObjects: true }) as string[];
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
-        <h2>{event ? 'Muokkaa tapahtumaa' : 'Uusi tapahtuma'}</h2>
+        <h2>{event ? t('eventModal.editEvent') : t('eventModal.newEvent')}</h2>
         <form onSubmit={handleSubmit}>
-          <label>Perheenjäsen</label>
+          <label>{t('eventModal.member')}</label>
           <select value={form.member_id} onChange={e => set('member_id', +e.target.value)}>
             {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
 
-          <label>Otsikko</label>
+          <label>{t('eventModal.title')}</label>
           <input value={form.title} onChange={e => set('title', e.target.value)} autoFocus required />
 
           <div className="row">
             <div>
-              <label>Alkaa</label>
+              <label>{t('eventModal.startTime')}</label>
               <input type="time" value={form.start_time} onChange={e => set('start_time', e.target.value)} required />
             </div>
             <div>
-              <label>Päättyy</label>
+              <label>{t('eventModal.endTime')}</label>
               <input type="time" value={form.end_time} onChange={e => set('end_time', e.target.value)} required />
             </div>
           </div>
 
-          <label>Kategoria</label>
+          <label>{t('eventModal.category')}</label>
           <select value={form.category_id ?? ''} onChange={e => set('category_id', e.target.value ? +e.target.value : null)}>
-            <option value="">— Ei kategoriaa —</option>
+            <option value="">{t('eventModal.noCategory')}</option>
             {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
           </select>
 
           {showRideFields && (
             <div className="ride-section">
-              <div className="ride-header">🚗 Kuskaukset</div>
+              <div className="ride-header">{t('eventModal.rides')}</div>
               <div className="row">
                 <div>
-                  <label>→ Meno</label>
+                  <label>{t('eventModal.rideOutbound')}</label>
                   <input
                     value={form.ride_outbound}
                     onChange={e => set('ride_outbound', e.target.value)}
-                    placeholder="Esim. Virtaset, Oma..."
+                    placeholder={t('eventModal.rideOutboundPlaceholder')}
                   />
                 </div>
                 <div>
-                  <label>← Paluu</label>
+                  <label>{t('eventModal.rideReturn')}</label>
                   <input
                     value={form.ride_return}
                     onChange={e => set('ride_return', e.target.value)}
-                    placeholder="Esim. Oma, Korhosen äiti..."
+                    placeholder={t('eventModal.rideReturnPlaceholder')}
                   />
                 </div>
               </div>
             </div>
           )}
 
-          <label>Sijainti</label>
+          <label>{t('eventModal.location')}</label>
           <input value={form.location} onChange={e => set('location', e.target.value)} />
 
-          <label>Kuvaus</label>
+          <label>{t('eventModal.description')}</label>
           <textarea value={form.description} onChange={e => set('description', e.target.value)} />
 
           <div className="toggle-row">
@@ -124,27 +126,27 @@ export default function EventModal({ event, members, categories, defaultMemberId
                 if (!form.date) set('date', defaultDate ?? new Date().toISOString().slice(0, 10));
               }
             }} />
-            <label htmlFor="recurring" style={{ margin: 0 }}>Toistuva viikoittain</label>
+            <label htmlFor="recurring" style={{ margin: 0 }}>{t('eventModal.recurringWeekly')}</label>
           </div>
 
           {form.is_recurring ? (
             <>
-              <label>Viikonpäivä</label>
+              <label>{t('eventModal.weekday')}</label>
               <select value={form.weekday ?? 0} onChange={e => set('weekday', +e.target.value)}>
                 {WEEKDAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
               </select>
             </>
           ) : (
             <>
-              <label>Päivämäärä</label>
+              <label>{t('eventModal.date')}</label>
               <input type="date" value={form.date ?? ''} onChange={e => set('date', e.target.value)} required={!form.is_recurring} />
             </>
           )}
 
           <div className="modal-actions">
-            {event && onDelete && <button type="button" className="btn-danger" onClick={onDelete}>Poista</button>}
-            <button type="button" className="btn-cancel" onClick={onClose}>Peruuta</button>
-            <button type="submit" className="btn-primary">Tallenna</button>
+            {event && onDelete && <button type="button" className="btn-danger" onClick={onDelete}>{t('eventModal.delete')}</button>}
+            <button type="button" className="btn-cancel" onClick={onClose}>{t('eventModal.cancel')}</button>
+            <button type="submit" className="btn-primary">{t('eventModal.save')}</button>
           </div>
         </form>
       </div>
