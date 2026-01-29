@@ -767,6 +767,74 @@ app.delete('/api/events/:id', authMiddleware, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Copy week events ────────────────────────────────────────────────────────
+
+app.post('/api/events/copy-week', authMiddleware, (req, res) => {
+  const { familyId, sourceWeek, targetWeek } = req.body;
+  if (!familyId || !sourceWeek || !targetWeek) {
+    return res.status(400).json({ error: 'familyId, sourceWeek, targetWeek required' });
+  }
+
+  // Check family membership
+  if (req.user.role !== 'superadmin') {
+    const m = db.prepare('SELECT 1 FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, familyId);
+    if (!m) return res.status(403).json({ error: 'Not a member of this family' });
+  }
+
+  const sourceStart = new Date(sourceWeek);
+  const sourceEnd = new Date(sourceStart);
+  sourceEnd.setDate(sourceEnd.getDate() + 6);
+  const sourceStartStr = sourceStart.toISOString().slice(0, 10);
+  const sourceEndStr = sourceEnd.toISOString().slice(0, 10);
+
+  // Get non-recurring events from source week
+  const sourceEvents = db.prepare(`
+    SELECT * FROM events
+    WHERE family_id = ? AND is_recurring = 0 AND date BETWEEN ? AND ?
+  `).all(familyId, sourceStartStr, sourceEndStr);
+
+  let copied = 0;
+  let skipped = 0;
+
+  const insertStmt = db.prepare(`
+    INSERT INTO events (member_id, category_id, title, start_time, end_time, date, weekday, location, description, is_recurring, ride_outbound, ride_return, family_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+  `);
+
+  const checkDup = db.prepare(`
+    SELECT 1 FROM events
+    WHERE member_id = ? AND title = ? AND start_time = ? AND end_time = ? AND date = ? AND family_id = ?
+  `);
+
+  const tx = db.transaction(() => {
+    for (const ev of sourceEvents) {
+      // Calculate day offset from source monday
+      const evDate = new Date(ev.date);
+      const dayOffset = Math.round((evDate - sourceStart) / (1000 * 60 * 60 * 24));
+      const targetDate = new Date(targetWeek);
+      targetDate.setDate(targetDate.getDate() + dayOffset);
+      const targetDateStr = targetDate.toISOString().slice(0, 10);
+
+      // Check duplicate
+      const dup = checkDup.get(ev.member_id, ev.title, ev.start_time, ev.end_time, targetDateStr, familyId);
+      if (dup) {
+        skipped++;
+        continue;
+      }
+
+      insertStmt.run(
+        ev.member_id, ev.category_id, ev.title, ev.start_time, ev.end_time,
+        targetDateStr, ev.weekday, ev.location, ev.description,
+        ev.ride_outbound, ev.ride_return, familyId
+      );
+      copied++;
+    }
+  });
+
+  tx();
+  res.json({ copied, skipped });
+});
+
 const PORT = process.env.PORT || 3001;
 
 export { app, db };

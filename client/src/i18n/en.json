@@ -10,6 +10,15 @@
       "prev": "◀ Previous",
       "next": "Next ▶",
       "today": "Today"
+    },
+    "copyWeek": {
+      "button": "Copy week",
+      "confirm": "Copy {{count}} events to next week?",
+      "copy": "Copy",
+      "cancel": "Cancel",
+      "success": "Copied {{copied}} events",
+      "noEvents": "No events to copy",
+      "skipped": "{{skipped}} skipped (already exist)"
     }
   },
   "header": {
