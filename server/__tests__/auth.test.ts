@@ -33,7 +33,7 @@ describe('POST /api/auth/register', () => {
     
     expect(res.status).toBe(201);
     const parsed = AuthResponseSchema.parse(res.body);
-    expect(parsed.user.role).toBe('admin');
+    expect(parsed.user.role).toBe('superadmin');
     expect(parsed.user.email).toBe('admin@test.com');
     expect(parsed.token).toBeTruthy();
   });
