@@ -417,7 +417,7 @@ app.get('/api/families/:familyId/users', authMiddleware, requireFamily, (req, re
     SELECT u.id, u.email, u.name, u.role, fu.role as family_role, u.must_change_password, u.created_at
     FROM users u
     JOIN family_users fu ON u.id = fu.user_id
-    WHERE fu.family_id = ?
+    WHERE fu.family_id = ? AND u.role != 'superadmin'
     ORDER BY u.id
   `).all(req.familyId);
   
