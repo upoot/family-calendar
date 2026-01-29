@@ -79,12 +79,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await apiFetch('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
     localStorage.setItem('token', data.token);
     setToken(data.token);
+    // Fetch user data immediately so navigation works
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` };
+      const res = await fetch('/api/auth/me', { headers });
+      if (res.ok) {
+        const userData = await res.json();
+        setUser(userData);
+        if (userData.families?.length > 0) {
+          const fid = userData.families[0].id;
+          setCurrentFamilyId(fid);
+          localStorage.setItem('currentFamilyId', String(fid));
+        }
+      }
+    } catch {}
   };
 
   const register = async (email: string, password: string, name: string) => {
     const data = await apiFetch('/api/auth/register', { method: 'POST', body: JSON.stringify({ email, password, name }) });
     localStorage.setItem('token', data.token);
     setToken(data.token);
+    // Fetch user data immediately so navigation works
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` };
+      const res = await fetch('/api/auth/me', { headers });
+      if (res.ok) {
+        const userData = await res.json();
+        setUser(userData);
+        if (userData.families?.length > 0) {
+          const fid = userData.families[0].id;
+          setCurrentFamilyId(fid);
+          localStorage.setItem('currentFamilyId', String(fid));
+        }
+      }
+    } catch {}
   };
 
   const logout = () => {
