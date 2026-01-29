@@ -833,14 +833,21 @@ header h1::before {
   font-weight: 500;
 }
 
+.role-badge.superadmin,
 .role-badge.admin {
   background: rgba(139, 92, 246, 0.15);
   color: var(--accent);
 }
 
-.role-badge.user {
+.role-badge.user,
+.role-badge.member {
   background: rgba(16, 185, 129, 0.15);
   color: var(--success);
+}
+
+.role-badge.owner {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
 }
 
 /* Onboarding */

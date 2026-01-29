@@ -9,13 +9,15 @@ import InvitePage from './pages/InvitePage'
 import AdminPage from './pages/AdminPage'
 import OnboardingPage from './pages/OnboardingPage'
 import SettingsPage from './pages/SettingsPage'
+import ChangePasswordPage from './pages/ChangePasswordPage'
 import './index.css'
 
-function ProtectedRoute({ children, adminOnly }: { children: React.ReactNode; adminOnly?: boolean }) {
+function ProtectedRoute({ children, adminOnly, allowPasswordChange }: { children: React.ReactNode; adminOnly?: boolean; allowPasswordChange?: boolean }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="auth-page"><p>Ladataan...</p></div>;
   if (!user) return <Navigate to="/login" />;
-  if (adminOnly && user.role !== 'admin') return <Navigate to="/" />;
+  if (user.must_change_password && !allowPasswordChange) return <Navigate to="/change-password" />;
+  if (adminOnly && user.role !== 'superadmin') return <Navigate to="/" />;
   return <>{children}</>;
 }
 
@@ -32,6 +34,7 @@ function AppRoutes() {
       <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
       <Route path="/invite/:code" element={<InvitePage />} />
+      <Route path="/change-password" element={<ProtectedRoute allowPasswordChange><ChangePasswordPage /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
       <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
