@@ -146,7 +146,7 @@ export default function App() {
   }
 
   const currentFamily = user.families.find(f => f.id === currentFamilyId);
-  const isOwner = currentFamily?.user_role === 'owner' || user.role === 'admin';
+  const isOwner = currentFamily?.user_role === 'owner' || user.role === 'superadmin';
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -176,7 +176,7 @@ export default function App() {
             <div className="user-menu">
               <span className="user-name">{user.name}</span>
               {isOwner && <Link to="/settings" className="btn-sm" title="Perheen asetukset">⚙️</Link>}
-              {user.role === 'admin' && <Link to="/admin" className="btn-sm" title="Hallintapaneeli">🔧</Link>}
+              {user.role === 'superadmin' && <Link to="/admin" className="btn-sm" title="Hallintapaneeli">🔧</Link>}
               <button className="btn-sm" onClick={logout}>Ulos</button>
             </div>
           </div>
