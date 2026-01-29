@@ -876,12 +876,17 @@ const COMMANDS = {
 const TIME_HINTS = /\b(klo|kello|\d{1,2}[:.]\d{2}|\d{1,2}\s*(am|pm)|maanantai|tiistai|keskiviikko|torstai|perjantai|lauantai|sunnuntai|monday|tuesday|wednesday|thursday|friday|saturday|sunday|huomenna|ylihuomenna|tomorrow|ensi\s+viiko)/i;
 
 function detectIntent(text) {
-  const lower = text.toLowerCase();
+  const lower = text.toLowerCase().trim();
   const words = lower.split(/\s+/);
   const matchesAny = (keywords) =>
     keywords.some(kw => words.some(w => w.startsWith(kw)) || lower.includes(kw));
 
-  // Specific intents first
+  // Explicit prefix commands (highest priority)
+  if (/^(kauppa|shop|osta)\s*:/i.test(text)) return 'add_shopping';
+  if (/^(tehtävä|todo|task|muista)\s*:/i.test(text)) return 'add_todo';
+  if (/^(varaa|event|tapahtuma)\s*:/i.test(text)) return 'create_event';
+
+  // Keyword-based detection
   if (matchesAny(COMMANDS.shop)) return 'add_shopping';
   if (matchesAny(COMMANDS.cancel)) return 'cancel_event';
   if (matchesAny(COMMANDS.move)) return 'move_event';
@@ -926,8 +931,8 @@ app.post('/api/parse', authMiddleware, (req, res) => {
   const type = detectIntent(text);
   const member = extractMember(text, members);
 
-  // Remove member name and command keywords from text to get title
-  let title = text;
+  // Strip explicit prefix (kauppa: xxx → xxx)
+  let title = text.replace(/^(kauppa|shop|osta|tehtävä|todo|task|muista|varaa|event|tapahtuma)\s*:\s*/i, '');
   if (member) title = title.replace(new RegExp(member.name, 'gi'), '');
   for (const keywords of Object.values(COMMANDS)) {
     for (const kw of keywords) {
