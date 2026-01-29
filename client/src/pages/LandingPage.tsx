@@ -8,8 +8,8 @@ export default function LandingPage() {
       <nav className="landing-nav">
         <div className="landing-nav-inner">
           <div className="landing-logo">
-            <span className="landing-logo-icon">📅</span>
-            Family Calendar
+            <span className="landing-logo-icon">🧊</span>
+            Fridge
           </div>
           <div className="landing-nav-links">
             <a href="#how">How it works</a>
@@ -180,7 +180,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="landing-footer">
-        <p>Family Calendar · Coming soon</p>
+        <p>Fridge · Coming soon</p>
       </footer>
     </div>
   );
