@@ -28,14 +28,17 @@ if (!JWT_SECRET) {
 }
 
 // ── Rate limiting — estä brute-force-hyökkäykset ────────────────────────────
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minuuttia
-  max: 5, // max 5 yritystä per IP
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many attempts, please try again later' },
-});
-const db = new Database(join(__dirname, 'calendar.db'));
+const authLimiter = process.env.NODE_ENV === 'test'
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minuuttia
+      max: 5, // max 5 yritystä per IP
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'Too many attempts, please try again later' },
+    });
+const dbPath = process.env.DB_PATH || join(__dirname, 'calendar.db');
+const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
@@ -574,5 +577,10 @@ app.delete('/api/events/:id', authMiddleware, (req, res) => {
   res.json({ ok: true });
 });
 
-const PORT = 3001;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const PORT = process.env.PORT || 3001;
+
+export { app, db };
+
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}

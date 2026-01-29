@@ -6,9 +6,17 @@
     "server": "cd server && node index.js",
     "client": "cd client && npm run dev",
     "build": "cd client && npm run build",
-    "install:all": "npm install && cd server && npm install && cd ../client && npm install"
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "test:unit": "vitest run",
+    "test:api": "vitest run --config vitest.api.config.ts",
+    "test:e2e": "npx playwright test",
+    "test": "npm run test:api && npm run test:e2e"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@playwright/test": "^1.58.0",
+    "concurrently": "^8.2.2",
+    "supertest": "^7.2.2",
+    "vitest": "^4.0.18",
+    "zod": "^4.3.6"
   }
 }
