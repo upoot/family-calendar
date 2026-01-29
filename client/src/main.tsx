@@ -11,6 +11,8 @@ import OnboardingPage from './pages/OnboardingPage'
 import SettingsPage from './pages/SettingsPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
 import LandingPage from './pages/LandingPage'
+import TodoPage from './pages/TodoPage'
+import ShoppingPage from './pages/ShoppingPage'
 import './i18n/i18n'
 import './index.css'
 
@@ -41,6 +43,8 @@ function AppRoutes() {
       <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
       <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+      <Route path="/todos" element={<ProtectedRoute><TodoPage /></ProtectedRoute>} />
+      <Route path="/shopping" element={<ProtectedRoute><ShoppingPage /></ProtectedRoute>} />
       <Route path="/" element={<ProtectedRoute><App /></ProtectedRoute>} />
     </Routes>
   );

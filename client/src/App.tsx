@@ -7,6 +7,7 @@ import DroppableCell from './components/DroppableCell';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import { useAuth } from './context/AuthContext';
 import { Link, Navigate } from 'react-router-dom';
+import AppNav from './components/AppNav';
 import type { Member, Category, CalendarEvent, EventFormData } from './types';
 
 function getMonday(d: Date): Date {
@@ -181,7 +182,7 @@ export default function App() {
       <div className="app">
         <header>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <h1>📅 {t('app.title')}</h1>
+            <AppNav />
             {user.families.length > 1 && (
               <select
                 className="family-selector"

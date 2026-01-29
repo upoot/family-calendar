@@ -123,6 +123,31 @@ try { db.exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NUL
 try { db.exec(`ALTER TABLE users ADD COLUMN created_by INTEGER REFERENCES users(id)`); } catch {}
 try { db.exec(`ALTER TABLE members ADD COLUMN user_id INTEGER REFERENCES users(id)`); } catch {}
 
+// ── Todos & Shopping ────────────────────────────────────────────────────────
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS todos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    family_id INTEGER NOT NULL REFERENCES families(id),
+    title TEXT NOT NULL,
+    done INTEGER NOT NULL DEFAULT 0,
+    due_date TEXT,
+    assigned_to INTEGER REFERENCES members(id),
+    week TEXT NOT NULL,
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS shopping_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    family_id INTEGER NOT NULL REFERENCES families(id),
+    name TEXT NOT NULL,
+    category TEXT,
+    checked INTEGER NOT NULL DEFAULT 0,
+    added_by INTEGER REFERENCES users(id),
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+`);
+
 // Migrate old 'admin' role to 'superadmin'
 try { db.exec(`UPDATE users SET role = 'superadmin' WHERE role = 'admin'`); } catch {}
 
@@ -835,6 +860,159 @@ app.post('/api/events/copy-week', authMiddleware, (req, res) => {
   tx();
   res.json({ copied, skipped });
 });
+
+// ── NL Parser ───────────────────────────────────────────────────────────────
+
+const COMMANDS = {
+  shop: ['kauppalist', 'ostoslist', 'kauppaan', 'buy', 'shop', 'grocery'],
+  todo: ['todo', 'tehtävä', 'muista', 'muistutus', 'pitää', 'täytyy', 'task'],
+  cancel: ['peru', 'poista', 'peruuta', 'cancel', 'remove', 'delete'],
+  move: ['siirrä', 'muuta', 'vaihda', 'move', 'reschedule'],
+  query: ['milloin', 'koska', 'onko', 'when', 'sopii', 'voisi'],
+  create: ['varaa', 'lisää', 'luo', 'uusi', 'laita', 'add', 'create', 'book'],
+};
+
+function detectIntent(text) {
+  const words = text.toLowerCase().split(/\s+/);
+  const matchesAny = (keywords) =>
+    keywords.some(kw => words.some(w => w.startsWith(kw)) || text.toLowerCase().includes(kw));
+  if (matchesAny(COMMANDS.shop)) return 'add_shopping';
+  if (matchesAny(COMMANDS.todo)) return 'add_todo';
+  if (matchesAny(COMMANDS.cancel)) return 'cancel_event';
+  if (matchesAny(COMMANDS.move)) return 'move_event';
+  if (matchesAny(COMMANDS.query)) return 'query_availability';
+  if (matchesAny(COMMANDS.create)) return 'create_event';
+  return 'create_event';
+}
+
+function extractMember(text, members) {
+  const lower = text.toLowerCase();
+  const sorted = [...members].sort((a, b) => b.name.length - a.name.length);
+  for (const m of sorted) {
+    if (lower.includes(m.name.toLowerCase())) return m;
+  }
+  return null;
+}
+
+app.post('/api/parse', authMiddleware, (req, res) => {
+  const { text, familyId } = req.body;
+  if (!text) return res.status(400).json({ error: 'text required' });
+
+  const fid = familyId || req.query.familyId;
+  const members = fid
+    ? db.prepare('SELECT * FROM members WHERE family_id = ?').all(fid)
+    : [];
+
+  const type = detectIntent(text);
+  const member = extractMember(text, members);
+
+  // Remove member name and command keywords from text to get title
+  let title = text;
+  if (member) title = title.replace(new RegExp(member.name, 'gi'), '');
+  for (const keywords of Object.values(COMMANDS)) {
+    for (const kw of keywords) {
+      title = title.replace(new RegExp(`\\b${kw}\\S*`, 'gi'), '');
+    }
+  }
+  title = title.replace(/\s+/g, ' ').trim();
+
+  res.json({ type, title, memberId: member?.id, memberName: member?.name, raw: text });
+});
+
+// ── Todos ───────────────────────────────────────────────────────────────────
+
+app.get('/api/families/:familyId/todos', authMiddleware, requireFamily, (req, res) => {
+  const { week } = req.query;
+  let items;
+  if (week) {
+    items = db.prepare('SELECT t.*, m.name as member_name, m.color as member_color FROM todos t LEFT JOIN members m ON t.assigned_to = m.id WHERE t.family_id = ? AND t.week = ? ORDER BY t.created_at').all(req.familyId, week);
+  } else {
+    items = db.prepare('SELECT t.*, m.name as member_name, m.color as member_color FROM todos t LEFT JOIN members m ON t.assigned_to = m.id WHERE t.family_id = ? ORDER BY t.created_at').all(req.familyId);
+  }
+  res.json(items);
+});
+
+app.post('/api/families/:familyId/todos', authMiddleware, requireFamily, (req, res) => {
+  const { title, assignedTo, dueDate, week } = req.body;
+  if (!title || !week) return res.status(400).json({ error: 'title and week required' });
+
+  const result = db.prepare(
+    'INSERT INTO todos (family_id, title, assigned_to, due_date, week, created_by) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(req.familyId, title, assignedTo || null, dueDate || null, week, req.user.id);
+
+  const item = db.prepare('SELECT t.*, m.name as member_name, m.color as member_color FROM todos t LEFT JOIN members m ON t.assigned_to = m.id WHERE t.id = ?').get(result.lastInsertRowid);
+  res.status(201).json(item);
+});
+
+app.patch('/api/families/:familyId/todos/:id', authMiddleware, requireFamily, (req, res) => {
+  const { id } = req.params;
+  const todo = db.prepare('SELECT * FROM todos WHERE id = ? AND family_id = ?').get(id, req.familyId);
+  if (!todo) return res.status(404).json({ error: 'Not found' });
+
+  const { title, done, assignedTo, dueDate } = req.body;
+  if (title !== undefined) db.prepare('UPDATE todos SET title = ? WHERE id = ?').run(title, id);
+  if (done !== undefined) db.prepare('UPDATE todos SET done = ? WHERE id = ?').run(done ? 1 : 0, id);
+  if (assignedTo !== undefined) db.prepare('UPDATE todos SET assigned_to = ? WHERE id = ?').run(assignedTo, id);
+  if (dueDate !== undefined) db.prepare('UPDATE todos SET due_date = ? WHERE id = ?').run(dueDate, id);
+
+  const updated = db.prepare('SELECT t.*, m.name as member_name, m.color as member_color FROM todos t LEFT JOIN members m ON t.assigned_to = m.id WHERE t.id = ?').get(id);
+  res.json(updated);
+});
+
+app.delete('/api/families/:familyId/todos/:id', authMiddleware, requireFamily, (req, res) => {
+  const { id } = req.params;
+  db.prepare('DELETE FROM todos WHERE id = ? AND family_id = ?').run(id, req.familyId);
+  res.status(204).end();
+});
+
+// ── Shopping ────────────────────────────────────────────────────────────────
+
+app.get('/api/families/:familyId/shopping', authMiddleware, requireFamily, (req, res) => {
+  const items = db.prepare(
+    'SELECT s.*, u.name as added_by_name FROM shopping_items s LEFT JOIN users u ON s.added_by = u.id WHERE s.family_id = ? ORDER BY s.checked, s.category, s.created_at'
+  ).all(req.familyId);
+  res.json(items);
+});
+
+app.post('/api/families/:familyId/shopping', authMiddleware, requireFamily, (req, res) => {
+  const { name, category } = req.body;
+  if (!name) return res.status(400).json({ error: 'name required' });
+
+  const result = db.prepare(
+    'INSERT INTO shopping_items (family_id, name, category, added_by) VALUES (?, ?, ?, ?)'
+  ).run(req.familyId, name, category || null, req.user.id);
+
+  const item = db.prepare('SELECT * FROM shopping_items WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json(item);
+});
+
+app.patch('/api/families/:familyId/shopping/:id', authMiddleware, requireFamily, (req, res) => {
+  const { id } = req.params;
+  const item = db.prepare('SELECT * FROM shopping_items WHERE id = ? AND family_id = ?').get(id, req.familyId);
+  if (!item) return res.status(404).json({ error: 'Not found' });
+
+  const { name, checked, category } = req.body;
+  if (name !== undefined) db.prepare('UPDATE shopping_items SET name = ? WHERE id = ?').run(name, id);
+  if (checked !== undefined) db.prepare('UPDATE shopping_items SET checked = ? WHERE id = ?').run(checked ? 1 : 0, id);
+  if (category !== undefined) db.prepare('UPDATE shopping_items SET category = ? WHERE id = ?').run(category, id);
+
+  const updated = db.prepare('SELECT * FROM shopping_items WHERE id = ?').get(id);
+  res.json(updated);
+});
+
+app.delete('/api/families/:familyId/shopping/:id', authMiddleware, requireFamily, (req, res) => {
+  const { id } = req.params;
+  db.prepare('DELETE FROM shopping_items WHERE id = ? AND family_id = ?').run(id, req.familyId);
+  res.status(204).end();
+});
+
+app.delete('/api/families/:familyId/shopping', authMiddleware, requireFamily, (req, res) => {
+  // Clear checked items
+  db.prepare('DELETE FROM shopping_items WHERE family_id = ? AND checked = 1').run(req.familyId);
+  res.status(204).end();
+});
+
+// ── Start ───────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3001;
 
