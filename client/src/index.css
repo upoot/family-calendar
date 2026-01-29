@@ -514,6 +514,14 @@ header h1::before {
   background: var(--accent);
   color: white;
   box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: inherit;
+  transition: all 0.15s ease;
 }
 
 .btn-primary:hover {
@@ -524,6 +532,13 @@ header h1::before {
   background: var(--bg-tertiary);
   color: var(--text-secondary);
   border: 1px solid var(--border-light);
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: inherit;
+  transition: all 0.15s ease;
 }
 
 .btn-cancel:hover {
@@ -535,6 +550,14 @@ header h1::before {
   background: var(--danger);
   color: white;
   margin-right: auto;
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: inherit;
+  transition: all 0.15s ease;
 }
 
 .btn-danger:hover {
