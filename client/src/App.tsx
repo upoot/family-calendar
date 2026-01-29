@@ -45,6 +45,8 @@ export default function App() {
     weekday?: number;
   } | null>(null);
   const [activeEvent, setActiveEvent] = useState<CalendarEvent | null>(null);
+  const [copyWeekModal, setCopyWeekModal] = useState(false);
+  const [copyWeekMsg, setCopyWeekMsg] = useState<string | null>(null);
 
   const weekStr = fmt(weekStart);
   const authHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
@@ -130,6 +132,30 @@ export default function App() {
     fetchEvents();
   };
 
+  const nonRecurringCount = events.filter(e => !e.is_recurring).length;
+
+  const handleCopyWeek = async () => {
+    const targetWeek = fmt(addDays(weekStart, 7));
+    const res = await fetch('/api/events/copy-week', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ familyId: currentFamilyId, sourceWeek: weekStr, targetWeek }),
+    });
+    if (res.ok) {
+      const { copied, skipped } = await res.json();
+      setCopyWeekModal(false);
+      if (copied === 0 && skipped === 0) {
+        setCopyWeekMsg(t('calendar.copyWeek.noEvents'));
+      } else {
+        let msg = t('calendar.copyWeek.success', { copied });
+        if (skipped > 0) msg += ' · ' + t('calendar.copyWeek.skipped', { skipped });
+        setCopyWeekMsg(msg);
+      }
+      setWeekStart(w => addDays(w, 7));
+      setTimeout(() => setCopyWeekMsg(null), 4000);
+    }
+  };
+
   const DAYS = t('calendar.days', { returnObjects: true }) as string[];
   const monthNames = t('calendar.months', { returnObjects: true }) as string[];
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -174,6 +200,11 @@ export default function App() {
               <span className="current">{weekLabel}</span>
               <button onClick={() => setWeekStart(w => addDays(w, 7))}>{t('calendar.weekNav.next')}</button>
               <button onClick={() => setWeekStart(getMonday(new Date()))}>{t('calendar.weekNav.today')}</button>
+              <button
+                className="copy-week-btn"
+                onClick={() => nonRecurringCount > 0 ? setCopyWeekModal(true) : setCopyWeekMsg(t('calendar.copyWeek.noEvents'))}
+                title={t('calendar.copyWeek.button')}
+              >📋</button>
             </div>
             <div className="user-menu">
               <span className="user-name">{user.name}</span>
@@ -241,6 +272,23 @@ export default function App() {
             </div>
           )}
         </DragOverlay>
+
+        {copyWeekMsg && (
+          <div className="copy-week-toast">{copyWeekMsg}</div>
+        )}
+
+        {copyWeekModal && (
+          <div className="modal-overlay" onClick={() => setCopyWeekModal(false)}>
+            <div className="modal copy-week-dialog" onClick={e => e.stopPropagation()}>
+              <h2>📋 {t('calendar.copyWeek.button')}</h2>
+              <p>{t('calendar.copyWeek.confirm', { count: nonRecurringCount })}</p>
+              <div className="modal-actions">
+                <button className="btn-cancel" onClick={() => setCopyWeekModal(false)}>{t('calendar.copyWeek.cancel')}</button>
+                <button className="btn-primary" onClick={handleCopyWeek}>{t('calendar.copyWeek.copy')}</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {modal && (
           <EventModal
