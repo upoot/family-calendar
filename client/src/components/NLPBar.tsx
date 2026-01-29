@@ -1,15 +1,27 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   familyId: number | null;
   token: string | null;
+  memberNames: string[];
   onAction: () => void;
+}
+
+function getISOWeek(): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  const jan4 = new Date(d.getFullYear(), 0, 4);
+  const weekNum = 1 + Math.round(((d.getTime() - jan4.getTime()) / 86400000 - 3 + ((jan4.getDay() + 6) % 7)) / 7);
+  return `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
 }
 
 export default function NLPBar({ familyId, token, onAction }: Props) {
   const [input, setInput] = useState('');
   const [status, setStatus] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
   const [loading, setLoading] = useState(false);
+  const { t } = useTranslation();
 
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
@@ -32,17 +44,12 @@ export default function NLPBar({ familyId, token, onAction }: Props) {
             method: 'POST', headers,
             body: JSON.stringify({ name: parsed.title || input }),
           });
-          setStatus({ text: `🛒 Lisätty kauppalistaan: ${parsed.title || input}`, type: 'success' });
+          setStatus({ text: t('nlp.addedShopping', { item: parsed.title || input }), type: 'success' });
           break;
         }
         case 'add_todo': {
-          const now = new Date();
-          const jan4 = new Date(now.getFullYear(), 0, 4);
-          const dayDiff = (now.getTime() - jan4.getTime()) / 86400000;
-          const weekNum = Math.ceil((dayDiff + jan4.getDay() + 1) / 7);
-          const week = `${now.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
-
-          await fetch(`/api/families/${familyId}/todos`, {
+          const week = getISOWeek();
+          const todoRes = await fetch(`/api/families/${familyId}/todos`, {
             method: 'POST', headers,
             body: JSON.stringify({
               title: parsed.title || input,
@@ -50,35 +57,33 @@ export default function NLPBar({ familyId, token, onAction }: Props) {
               assignedTo: parsed.memberId || null,
             }),
           });
-          setStatus({ text: `✅ Tehtävä lisätty: ${parsed.title || input}`, type: 'success' });
+          if (!todoRes.ok) throw new Error(`Todo: ${todoRes.status}`);
+          setStatus({ text: t('nlp.addedTodo', { item: parsed.title || input }), type: 'success' });
           break;
         }
         case 'create_event':
-          setStatus({ text: `📅 "${parsed.title || input}" — klikkaa kalenterista solua lisäämiseen`, type: 'info' });
+          setStatus({ text: t('nlp.eventHint', { item: parsed.title || input }), type: 'info' });
           break;
         case 'query_availability':
-          setStatus({ text: `🔍 "${parsed.title || input}" — haku tulossa pian`, type: 'info' });
+          setStatus({ text: t('nlp.queryHint', { item: parsed.title || input }), type: 'info' });
           break;
         default:
           // Treat unknown as todo
           {
-            const now = new Date();
-            const jan4 = new Date(now.getFullYear(), 0, 4);
-            const dayDiff = (now.getTime() - jan4.getTime()) / 86400000;
-            const weekNum = Math.ceil((dayDiff + jan4.getDay() + 1) / 7);
-            const week = `${now.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
-            await fetch(`/api/families/${familyId}/todos`, {
+            const week = getISOWeek();
+            const defRes = await fetch(`/api/families/${familyId}/todos`, {
               method: 'POST', headers,
               body: JSON.stringify({ title: input, week }),
             });
-            setStatus({ text: `✅ Tehtävä lisätty: ${input}`, type: 'success' });
+            if (!defRes.ok) throw new Error(`Todo: ${defRes.status}`);
+            setStatus({ text: t('nlp.addedTodo', { item: input }), type: 'success' });
           }
       }
 
       setInput('');
       onAction();
     } catch (err) {
-      setStatus({ text: `❌ Virhe: ${(err as Error).message}`, type: 'error' });
+      setStatus({ text: t('nlp.error', { error: (err as Error).message }), type: 'error' });
     } finally {
       setLoading(false);
       setTimeout(() => setStatus(null), 4000);
@@ -92,7 +97,9 @@ export default function NLPBar({ familyId, token, onAction }: Props) {
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
-          placeholder="kauppa: maitoa 2prk / tehtävä: pese auto / varaa: treeni ti klo 17"
+          placeholder={memberNames.length
+            ? `kauppa: maitoa / tehtävä: pese auto ${memberNames[0]} / varaa: treeni ti klo 17`
+            : t('nlp.placeholder')}
           className="nlp-input"
           disabled={loading}
         />

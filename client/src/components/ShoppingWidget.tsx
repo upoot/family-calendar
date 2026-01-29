@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface ShoppingItem {
   id: number;
@@ -16,6 +17,7 @@ interface Props {
 
 export default function ShoppingWidget({ familyId, token, refreshKey }: Props) {
   const [items, setItems] = useState<ShoppingItem[]>([]);
+  const { t } = useTranslation();
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
   const load = useCallback(async () => {
@@ -40,11 +42,11 @@ export default function ShoppingWidget({ familyId, token, refreshKey }: Props) {
   return (
     <div className="widget">
       <div className="widget-header">
-        <h3>🛒 Ostoslista</h3>
-        <Link to="/shopping" className="widget-link">Kaikki →</Link>
+        <h3>🛒 {t('widgets.shoppingList')}</h3>
+        <Link to="/shopping" className="widget-link">{t('widgets.allLink')}</Link>
       </div>
       {items.length > 0 && checkedCount > 0 && (
-        <span className="widget-badge">{checkedCount} ostettu</span>
+        <span className="widget-badge">{t('widgets.bought', { count: checkedCount })}</span>
       )}
       <div className="widget-list">
         {unchecked.slice(0, 8).map(item => (
@@ -54,9 +56,9 @@ export default function ShoppingWidget({ familyId, token, refreshKey }: Props) {
           </div>
         ))}
         {unchecked.length > 8 && (
-          <p className="widget-more">+{unchecked.length - 8} muuta</p>
+          <p className="widget-more">{t('widgets.more', { count: unchecked.length - 8 })}</p>
         )}
-        {items.length === 0 && <p className="widget-empty">Lista tyhjä 🎉</p>}
+        {items.length === 0 && <p className="widget-empty">{t('widgets.emptyList')}</p>}
       </div>
     </div>
   );
