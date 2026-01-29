@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function InvitePage() {
+  const { t } = useTranslation();
   const { code } = useParams<{ code: string }>();
   const { user, token, refreshUser, setCurrentFamilyId } = useAuth();
   const navigate = useNavigate();
@@ -44,10 +46,10 @@ export default function InvitePage() {
     return (
       <div className="auth-page">
         <div className="auth-card">
-          <h2>Virheellinen kutsu</h2>
+          <h2>{t('invite.invalidInvite')}</h2>
           <p style={{ color: 'var(--text-secondary)' }}>{error}</p>
           <Link to="/login" className="btn-primary" style={{ display: 'inline-block', marginTop: '1rem', textDecoration: 'none', padding: '0.625rem 1.25rem', borderRadius: 'var(--radius-md)' }}>
-            Kirjaudu
+            {t('invite.login')}
           </Link>
         </div>
       </div>
@@ -55,18 +57,18 @@ export default function InvitePage() {
   }
 
   if (!family) {
-    return <div className="auth-page"><div className="auth-card"><p>Ladataan...</p></div></div>;
+    return <div className="auth-page"><div className="auth-card"><p>{t('invite.loading')}</p></div></div>;
   }
 
   if (!user) {
     return (
       <div className="auth-page">
         <div className="auth-card">
-          <h2>Kutsu: {family.name}</h2>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>Kirjaudu sisään tai rekisteröidy liittyäksesi perheeseen.</p>
+          <h2>{t('invite.joinFamily', { name: family.name })}</h2>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>{t('invite.loginOrRegister')}</p>
           <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <Link to={`/login?redirect=/invite/${code}`} className="btn-primary" style={{ textDecoration: 'none', padding: '0.625rem 1.25rem', borderRadius: 'var(--radius-md)' }}>Kirjaudu</Link>
-            <Link to={`/register?redirect=/invite/${code}`} className="btn-cancel" style={{ textDecoration: 'none', padding: '0.625rem 1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>Rekisteröidy</Link>
+            <Link to={`/login?redirect=/invite/${code}`} className="btn-primary" style={{ textDecoration: 'none', padding: '0.625rem 1.25rem', borderRadius: 'var(--radius-md)' }}>{t('invite.login')}</Link>
+            <Link to={`/register?redirect=/invite/${code}`} className="btn-cancel" style={{ textDecoration: 'none', padding: '0.625rem 1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>{t('invite.register')}</Link>
           </div>
         </div>
       </div>
@@ -77,8 +79,8 @@ export default function InvitePage() {
     return (
       <div className="auth-page">
         <div className="auth-card">
-          <h2>✅ Liityit perheeseen: {family.name}</h2>
-          <p style={{ color: 'var(--text-secondary)' }}>Siirrytään kalenteriin...</p>
+          <h2>{t('invite.joined', { name: family.name })}</h2>
+          <p style={{ color: 'var(--text-secondary)' }}>{t('invite.redirecting')}</p>
         </div>
       </div>
     );
@@ -87,10 +89,10 @@ export default function InvitePage() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <h2>Kutsu: {family.name}</h2>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>Haluatko liittyä perheeseen <strong>{family.name}</strong>?</p>
+        <h2>{t('invite.joinFamily', { name: family.name })}</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }} dangerouslySetInnerHTML={{ __html: t('invite.joinQuestion', { name: family.name }) }} />
         <button className="btn-primary" onClick={handleJoin} disabled={joining}>
-          {joining ? 'Liitytään...' : 'Liity perheeseen'}
+          {joining ? t('invite.joining') : t('invite.join')}
         </button>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 
@@ -34,13 +35,13 @@ interface WizardMember {
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'];
 
 export default function AdminPage() {
+  const { t } = useTranslation();
   const { token, user: currentUser } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [families, setFamilies] = useState<AdminFamily[]>([]);
   const [superadmins, setSuperadmins] = useState<SuperAdmin[]>([]);
   const [tab, setTab] = useState<'families' | 'users' | 'superadmins'>('families');
 
-  // Wizard state
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
   const [wizardFamilyName, setWizardFamilyName] = useState('');
@@ -54,7 +55,6 @@ export default function AdminPage() {
   const [wizardNewMemberColor, setWizardNewMemberColor] = useState(COLORS[0]);
   const [wizardError, setWizardError] = useState('');
 
-  // Superadmin form state
   const [saMode, setSaMode] = useState<'existing' | 'new'>('existing');
   const [saUserId, setSaUserId] = useState<number | ''>('');
   const [saName, setSaName] = useState('');
@@ -71,8 +71,6 @@ export default function AdminPage() {
   };
 
   useEffect(() => { loadData(); }, []);
-
-  // ── Wizard ──────────────────────────────────────────────────────────────
 
   const resetWizard = () => {
     setWizardOpen(false);
@@ -93,7 +91,7 @@ export default function AdminPage() {
     if (wizardStep === 1) return wizardFamilyName.trim().length > 0;
     if (wizardStep === 2) {
       if (wizardAdminMode === 'new') return wizardAdminEmail.trim().length > 0 && wizardAdminPassword.length >= 8;
-      return true; // existing mode always valid (default = self)
+      return true;
     }
     return true;
   };
@@ -113,7 +111,7 @@ export default function AdminPage() {
     const res = await fetch('/api/families', { method: 'POST', headers, body: JSON.stringify(body) });
     if (!res.ok) {
       const data = await res.json();
-      setWizardError(data.error || 'Perheen luonti epäonnistui');
+      setWizardError(data.error || t('admin.familyCreateFailed'));
       return;
     }
     resetWizard();
@@ -131,17 +129,15 @@ export default function AdminPage() {
     setWizardMembers(wizardMembers.filter((_, idx) => idx !== i));
   };
 
-  // ── Superadmin management ───────────────────────────────────────────────
-
   const addSuperadmin = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaError('');
     const body: any = {};
     if (saMode === 'existing') {
-      if (!saUserId) { setSaError('Valitse käyttäjä'); return; }
+      if (!saUserId) { setSaError(t('admin.selectUserError')); return; }
       body.user_id = saUserId;
     } else {
-      if (!saEmail || saPassword.length < 8) { setSaError('Sähköposti ja salasana (väh. 8 merkkiä) vaaditaan'); return; }
+      if (!saEmail || saPassword.length < 8) { setSaError(t('admin.emailPasswordRequired')); return; }
       body.email = saEmail;
       body.password = saPassword;
       body.name = saName || saEmail;
@@ -149,7 +145,7 @@ export default function AdminPage() {
     const res = await fetch('/api/admin/superadmins', { method: 'POST', headers, body: JSON.stringify(body) });
     if (!res.ok) {
       const data = await res.json();
-      setSaError(data.error || 'Virhe');
+      setSaError(data.error || 'Error');
       return;
     }
     setSaUserId(''); setSaName(''); setSaEmail(''); setSaPassword('');
@@ -157,63 +153,58 @@ export default function AdminPage() {
   };
 
   const demoteSuperadmin = async (id: number) => {
-    if (!confirm('Poista superadmin-oikeudet?')) return;
+    if (!confirm(t('admin.removeSuperadminConfirm'))) return;
     const res = await fetch(`/api/admin/superadmins/${id}`, { method: 'DELETE', headers });
     if (!res.ok) {
       const data = await res.json();
-      alert(data.error || 'Virhe');
+      alert(data.error || 'Error');
       return;
     }
     loadData();
   };
 
-  // ── Existing actions ────────────────────────────────────────────────────
-
   const deleteUser = async (id: number) => {
-    if (!confirm('Poista käyttäjä?')) return;
+    if (!confirm(t('admin.deleteUserConfirm'))) return;
     await fetch(`/api/admin/users/${id}`, { method: 'DELETE', headers });
     loadData();
   };
 
   const deleteFamily = async (id: number) => {
-    if (!confirm('Poista perhe ja kaikki sen tiedot?')) return;
+    if (!confirm(t('admin.deleteFamilyConfirm'))) return;
     await fetch(`/api/admin/families/${id}`, { method: 'DELETE', headers });
     loadData();
   };
 
   const inputStyle: React.CSSProperties = { padding: '0.625rem 1rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.85rem', width: '100%' };
 
-  // Users that are not already superadmins (for promote dropdown)
   const nonSuperadminUsers = users.filter(u => u.role !== 'superadmin');
 
   return (
     <div className="app">
       <header>
-        <h1>⚙️ Hallintapaneeli</h1>
-        <Link to="/" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>← Kalenteriin</Link>
+        <h1>⚙️ {t('admin.title')}</h1>
+        <Link to="/" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>{t('admin.backToCalendar')}</Link>
       </header>
 
       <div className="admin-tabs">
-        <button className={tab === 'families' ? 'active' : ''} onClick={() => setTab('families')}>Perheet</button>
-        <button className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>Käyttäjät</button>
-        <button className={tab === 'superadmins' ? 'active' : ''} onClick={() => setTab('superadmins')}>Superadminit</button>
+        <button className={tab === 'families' ? 'active' : ''} onClick={() => setTab('families')}>{t('admin.tabs.families')}</button>
+        <button className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>{t('admin.tabs.users')}</button>
+        <button className={tab === 'superadmins' ? 'active' : ''} onClick={() => setTab('superadmins')}>{t('admin.tabs.superadmins')}</button>
       </div>
 
-      {/* ── FAMILIES TAB ─────────────────────────────────────────────────── */}
       {tab === 'families' && (
         <div className="admin-section">
           {!wizardOpen ? (
             <button className="btn-primary" style={{ marginBottom: '1.5rem' }} onClick={() => setWizardOpen(true)}>
-              + Luo uusi perhe
+              {t('admin.createFamily')}
             </button>
           ) : (
             <div style={{ marginBottom: '1.5rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Luo uusi perhe</h3>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>{t('admin.createFamilyTitle')}</h3>
                 <button onClick={resetWizard} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
               </div>
 
-              {/* Step indicators */}
               <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
                 {[1, 2, 3, 4].map(s => (
                   <div key={s} style={{
@@ -226,44 +217,41 @@ export default function AdminPage() {
 
               {wizardError && <div className="auth-error" style={{ marginBottom: '1rem' }}>{wizardError}</div>}
 
-              {/* Step 1: Family name */}
               {wizardStep === 1 && (
                 <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Perheen nimi</label>
-                  <input value={wizardFamilyName} onChange={e => setWizardFamilyName(e.target.value)} placeholder="esim. Virtaset" style={inputStyle}
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('admin.familyName')}</label>
+                  <input value={wizardFamilyName} onChange={e => setWizardFamilyName(e.target.value)} placeholder={t('admin.familyNamePlaceholder')} style={inputStyle}
                     onKeyDown={e => { if (e.key === 'Enter' && wizardCanNext()) setWizardStep(2); }} autoFocus />
                 </div>
               )}
 
-              {/* Step 2: Admin */}
               {wizardStep === 2 && (
                 <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Perheen ylläpitäjä</label>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('admin.familyAdmin')}</label>
                   <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                    <button type="button" className="btn-sm" style={wizardAdminMode === 'existing' ? { background: 'var(--accent)', color: 'white', borderColor: 'var(--accent)' } : {}} onClick={() => setWizardAdminMode('existing')}>Olemassa oleva</button>
-                    <button type="button" className="btn-sm" style={wizardAdminMode === 'new' ? { background: 'var(--accent)', color: 'white', borderColor: 'var(--accent)' } : {}} onClick={() => setWizardAdminMode('new')}>Luo uusi</button>
+                    <button type="button" className="btn-sm" style={wizardAdminMode === 'existing' ? { background: 'var(--accent)', color: 'white', borderColor: 'var(--accent)' } : {}} onClick={() => setWizardAdminMode('existing')}>{t('admin.existing')}</button>
+                    <button type="button" className="btn-sm" style={wizardAdminMode === 'new' ? { background: 'var(--accent)', color: 'white', borderColor: 'var(--accent)' } : {}} onClick={() => setWizardAdminMode('new')}>{t('admin.createNew')}</button>
                   </div>
                   {wizardAdminMode === 'existing' && (
                     <select value={wizardAdminId} onChange={e => setWizardAdminId(e.target.value ? parseInt(e.target.value) : '')} style={inputStyle}>
-                      <option value="">— Minä itse (oletus) —</option>
+                      <option value="">{t('admin.selfDefault')}</option>
                       {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}
                     </select>
                   )}
                   {wizardAdminMode === 'new' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <input value={wizardAdminName} onChange={e => setWizardAdminName(e.target.value)} placeholder="Nimi" style={inputStyle} />
-                      <input type="email" value={wizardAdminEmail} onChange={e => setWizardAdminEmail(e.target.value)} placeholder="Sähköposti" style={inputStyle} />
-                      <input type="text" value={wizardAdminPassword} onChange={e => setWizardAdminPassword(e.target.value)} placeholder="Väliaikainen salasana (väh. 8 merkkiä)" style={inputStyle} />
+                      <input value={wizardAdminName} onChange={e => setWizardAdminName(e.target.value)} placeholder={t('admin.namePlaceholder')} style={inputStyle} />
+                      <input type="email" value={wizardAdminEmail} onChange={e => setWizardAdminEmail(e.target.value)} placeholder={t('admin.emailPlaceholder')} style={inputStyle} />
+                      <input type="text" value={wizardAdminPassword} onChange={e => setWizardAdminPassword(e.target.value)} placeholder={t('admin.tempPasswordPlaceholder')} style={inputStyle} />
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Step 3: Members */}
               {wizardStep === 3 && (
                 <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Jäsenet (valinnainen)</label>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>Lisää kalenteri-rivit (swimlane) perheenjäsenille, tai ohita — ylläpitäjä lisää myöhemmin.</p>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('admin.membersOptional')}</label>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>{t('admin.membersOptionalDesc')}</p>
 
                   {wizardMembers.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem', marginBottom: '0.75rem' }}>
@@ -278,47 +266,45 @@ export default function AdminPage() {
                   )}
 
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <input value={wizardNewMemberName} onChange={e => setWizardNewMemberName(e.target.value)} placeholder="Jäsenen nimi" style={{ ...inputStyle, flex: 1 }}
+                    <input value={wizardNewMemberName} onChange={e => setWizardNewMemberName(e.target.value)} placeholder={t('admin.memberNamePlaceholder')} style={{ ...inputStyle, flex: 1 }}
                       onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addWizardMember(); } }} />
                     <input type="color" value={wizardNewMemberColor} onChange={e => setWizardNewMemberColor(e.target.value)}
                       style={{ width: 36, height: 36, border: 'none', background: 'none', cursor: 'pointer', borderRadius: 'var(--radius-sm)' }} />
-                    <button type="button" className="btn-sm" onClick={addWizardMember} style={{ background: 'var(--accent)', color: 'white', borderColor: 'var(--accent)' }}>Lisää</button>
+                    <button type="button" className="btn-sm" onClick={addWizardMember} style={{ background: 'var(--accent)', color: 'white', borderColor: 'var(--accent)' }}>{t('admin.add')}</button>
                   </div>
                 </div>
               )}
 
-              {/* Step 4: Summary */}
               {wizardStep === 4 && (
                 <div>
-                  <label style={{ display: 'block', marginBottom: '0.75rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Yhteenveto</label>
+                  <label style={{ display: 'block', marginBottom: '0.75rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('admin.summary')}</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.85rem' }}>
-                    <div><span style={{ color: 'var(--text-muted)' }}>Perhe:</span> <strong>{wizardFamilyName}</strong></div>
-                    <div><span style={{ color: 'var(--text-muted)' }}>Ylläpitäjä:</span> <strong>
-                      {wizardAdminMode === 'new' ? `${wizardAdminName || wizardAdminEmail} (uusi)` :
-                        wizardAdminId ? users.find(u => u.id === wizardAdminId)?.name || '?' : 'Minä itse'}
+                    <div><span style={{ color: 'var(--text-muted)' }}>{t('admin.summaryFamily')}</span> <strong>{wizardFamilyName}</strong></div>
+                    <div><span style={{ color: 'var(--text-muted)' }}>{t('admin.summaryAdmin')}</span> <strong>
+                      {wizardAdminMode === 'new' ? t('admin.summaryAdminNew', { name: wizardAdminName || wizardAdminEmail }) :
+                        wizardAdminId ? users.find(u => u.id === wizardAdminId)?.name || '?' : t('admin.summaryAdminSelf')}
                     </strong></div>
-                    <div><span style={{ color: 'var(--text-muted)' }}>Jäsenet:</span> <strong>
-                      {wizardMembers.length > 0 ? wizardMembers.map(m => m.name).join(', ') : 'Ei vielä lisätty'}
+                    <div><span style={{ color: 'var(--text-muted)' }}>{t('admin.summaryMembers')}</span> <strong>
+                      {wizardMembers.length > 0 ? wizardMembers.map(m => m.name).join(', ') : t('admin.summaryNoMembers')}
                     </strong></div>
                   </div>
                 </div>
               )}
 
-              {/* Navigation buttons */}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1.25rem' }}>
                 <button className="btn-sm" onClick={() => wizardStep > 1 ? setWizardStep(wizardStep - 1) : resetWizard()}
                   style={{ color: 'var(--text-secondary)' }}>
-                  {wizardStep === 1 ? 'Peruuta' : '← Edellinen'}
+                  {wizardStep === 1 ? t('admin.cancel') : t('admin.prev')}
                 </button>
                 {wizardStep < 4 ? (
                   <button className="btn-sm" onClick={() => setWizardStep(wizardStep + 1)}
                     disabled={!wizardCanNext()}
                     style={wizardCanNext() ? { background: 'var(--accent)', color: 'white', borderColor: 'var(--accent)' } : { opacity: 0.5 }}>
-                    Seuraava →
+                    {t('admin.next')}
                   </button>
                 ) : (
                   <button className="btn-primary" onClick={submitWizard}>
-                    Luo perhe
+                    {t('admin.createFamilyBtn')}
                   </button>
                 )}
               </div>
@@ -327,7 +313,7 @@ export default function AdminPage() {
 
           <table className="admin-table">
             <thead>
-              <tr><th>ID</th><th>Nimi</th><th>Ylläpitäjä</th><th>Kutsukoodi</th><th>Luotu</th><th></th></tr>
+              <tr><th>{t('admin.tableHeaders.id')}</th><th>{t('admin.tableHeaders.name')}</th><th>{t('admin.tableHeaders.admin')}</th><th>{t('admin.tableHeaders.inviteCode')}</th><th>{t('admin.tableHeaders.created')}</th><th></th></tr>
             </thead>
             <tbody>
               {families.map(f => (
@@ -337,7 +323,7 @@ export default function AdminPage() {
                   <td>{f.owner ? <span>{f.owner.name} <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>({f.owner.email})</span></span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                   <td><code>{f.invite_code}</code></td>
                   <td>{f.created_at?.slice(0, 10)}</td>
-                  <td><button className="btn-sm btn-danger" onClick={() => deleteFamily(f.id)}>Poista</button></td>
+                  <td><button className="btn-sm btn-danger" onClick={() => deleteFamily(f.id)}>{t('admin.delete')}</button></td>
                 </tr>
               ))}
             </tbody>
@@ -345,12 +331,11 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ── USERS TAB ────────────────────────────────────────────────────── */}
       {tab === 'users' && (
         <div className="admin-section">
           <table className="admin-table">
             <thead>
-              <tr><th>ID</th><th>Nimi</th><th>Sähköposti</th><th>Rooli</th><th>Luotu</th><th></th></tr>
+              <tr><th>{t('admin.tableHeaders.id')}</th><th>{t('admin.tableHeaders.name')}</th><th>{t('admin.tableHeaders.email')}</th><th>{t('admin.tableHeaders.role')}</th><th>{t('admin.tableHeaders.created')}</th><th></th></tr>
             </thead>
             <tbody>
               {users.map(u => (
@@ -360,7 +345,7 @@ export default function AdminPage() {
                   <td>{u.email}</td>
                   <td><span className={`role-badge ${u.role}`}>{u.role}</span></td>
                   <td>{u.created_at?.slice(0, 10)}</td>
-                  <td>{u.role !== 'superadmin' && <button className="btn-sm btn-danger" onClick={() => deleteUser(u.id)}>Poista</button>}</td>
+                  <td>{u.role !== 'superadmin' && <button className="btn-sm btn-danger" onClick={() => deleteUser(u.id)}>{t('admin.delete')}</button>}</td>
                 </tr>
               ))}
             </tbody>
@@ -368,32 +353,31 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ── SUPERADMINS TAB ──────────────────────────────────────────────── */}
       {tab === 'superadmins' && (
         <div className="admin-section">
           <div style={{ marginBottom: '1.5rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Lisää superadmin</label>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{t('admin.addSuperadmin')}</label>
             {saError && <div className="auth-error" style={{ marginBottom: '0.75rem' }}>{saError}</div>}
             <form onSubmit={addSuperadmin}>
               <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                <button type="button" className="btn-sm" style={saMode === 'existing' ? { background: 'var(--accent)', color: 'white', borderColor: 'var(--accent)' } : {}} onClick={() => setSaMode('existing')}>Olemassa oleva</button>
-                <button type="button" className="btn-sm" style={saMode === 'new' ? { background: 'var(--accent)', color: 'white', borderColor: 'var(--accent)' } : {}} onClick={() => setSaMode('new')}>Luo uusi</button>
+                <button type="button" className="btn-sm" style={saMode === 'existing' ? { background: 'var(--accent)', color: 'white', borderColor: 'var(--accent)' } : {}} onClick={() => setSaMode('existing')}>{t('admin.existing')}</button>
+                <button type="button" className="btn-sm" style={saMode === 'new' ? { background: 'var(--accent)', color: 'white', borderColor: 'var(--accent)' } : {}} onClick={() => setSaMode('new')}>{t('admin.createNew')}</button>
               </div>
               {saMode === 'existing' && (
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <select value={saUserId} onChange={e => setSaUserId(e.target.value ? parseInt(e.target.value) : '')} style={{ ...inputStyle, flex: 1 }}>
-                    <option value="">— Valitse käyttäjä —</option>
+                    <option value="">{t('admin.selectUser')}</option>
                     {nonSuperadminUsers.map(u => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}
                   </select>
-                  <button type="submit" className="btn-primary">Ylennä</button>
+                  <button type="submit" className="btn-primary">{t('admin.promote')}</button>
                 </div>
               )}
               {saMode === 'new' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <input value={saName} onChange={e => setSaName(e.target.value)} placeholder="Nimi" style={inputStyle} />
-                  <input type="email" value={saEmail} onChange={e => setSaEmail(e.target.value)} placeholder="Sähköposti" style={inputStyle} />
-                  <input type="text" value={saPassword} onChange={e => setSaPassword(e.target.value)} placeholder="Väliaikainen salasana (väh. 8 merkkiä)" style={inputStyle} />
-                  <button type="submit" className="btn-primary" style={{ alignSelf: 'flex-start' }}>Luo superadmin</button>
+                  <input value={saName} onChange={e => setSaName(e.target.value)} placeholder={t('admin.namePlaceholder')} style={inputStyle} />
+                  <input type="email" value={saEmail} onChange={e => setSaEmail(e.target.value)} placeholder={t('admin.emailPlaceholder')} style={inputStyle} />
+                  <input type="text" value={saPassword} onChange={e => setSaPassword(e.target.value)} placeholder={t('admin.tempPasswordPlaceholder')} style={inputStyle} />
+                  <button type="submit" className="btn-primary" style={{ alignSelf: 'flex-start' }}>{t('admin.createSuperadmin')}</button>
                 </div>
               )}
             </form>
@@ -401,7 +385,7 @@ export default function AdminPage() {
 
           <table className="admin-table">
             <thead>
-              <tr><th>ID</th><th>Nimi</th><th>Sähköposti</th><th>Luotu</th><th></th></tr>
+              <tr><th>{t('admin.tableHeaders.id')}</th><th>{t('admin.tableHeaders.name')}</th><th>{t('admin.tableHeaders.email')}</th><th>{t('admin.tableHeaders.created')}</th><th></th></tr>
             </thead>
             <tbody>
               {superadmins.map(sa => (
@@ -412,7 +396,7 @@ export default function AdminPage() {
                   <td>{sa.created_at?.slice(0, 10)}</td>
                   <td>
                     {sa.id !== currentUser?.id && (
-                      <button className="btn-sm btn-danger" onClick={() => demoteSuperadmin(sa.id)}>Poista oikeudet</button>
+                      <button className="btn-sm btn-danger" onClick={() => demoteSuperadmin(sa.id)}>{t('admin.removeRights')}</button>
                     )}
                   </td>
                 </tr>
