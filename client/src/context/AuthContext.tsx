@@ -75,31 +75,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { refreshUser(); }, [token]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<string> => {
     const data = await apiFetch('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
     localStorage.setItem('token', data.token);
     setToken(data.token);
-    // Fetch user data immediately so navigation works
+    // Fetch user data immediately and return target route
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` };
       const res = await fetch('/api/auth/me', { headers });
       if (res.ok) {
         const userData = await res.json();
         setUser(userData);
+        if (userData.must_change_password) return '/change-password';
         if (userData.families?.length > 0) {
           const fid = userData.families[0].id;
           setCurrentFamilyId(fid);
           localStorage.setItem('currentFamilyId', String(fid));
+          return '/';
         }
+        return '/onboarding';
       }
     } catch {}
+    return '/';
   };
 
-  const register = async (email: string, password: string, name: string) => {
+  const register = async (email: string, password: string, name: string): Promise<string> => {
     const data = await apiFetch('/api/auth/register', { method: 'POST', body: JSON.stringify({ email, password, name }) });
     localStorage.setItem('token', data.token);
     setToken(data.token);
-    // Fetch user data immediately so navigation works
+    // Fetch user data immediately and return target route
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` };
       const res = await fetch('/api/auth/me', { headers });
@@ -110,9 +114,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const fid = userData.families[0].id;
           setCurrentFamilyId(fid);
           localStorage.setItem('currentFamilyId', String(fid));
+          return '/';
         }
+        return '/onboarding';
       }
     } catch {}
+    return '/';
   };
 
   const logout = () => {
