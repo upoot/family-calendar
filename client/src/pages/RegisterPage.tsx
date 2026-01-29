@@ -19,7 +19,7 @@ export default function RegisterPage() {
     try {
       await register(email, password, name);
       const redirect = searchParams.get('redirect');
-      if (redirect) navigate(redirect);
+      navigate(redirect || '/');
     } catch (err: any) {
       setError(err.message || 'Registration failed');
     } finally {
