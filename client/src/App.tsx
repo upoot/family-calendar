@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { DndContext, DragOverlay, useSensor, useSensors, PointerSensor, type DragStartEvent, type DragEndEvent } from '@dnd-kit/core';
+import { useTranslation } from 'react-i18next';
 import EventModal from './components/EventModal';
 import DraggableEvent from './components/DraggableEvent';
 import DroppableCell from './components/DroppableCell';
+import LanguageSwitcher from './components/LanguageSwitcher';
 import { useAuth } from './context/AuthContext';
 import { Link, Navigate } from 'react-router-dom';
 import type { Member, Category, CalendarEvent, EventFormData } from './types';
-
-const DAYS = ['Ma', 'Ti', 'Ke', 'To', 'Pe', 'La', 'Su'];
 
 function getMonday(d: Date): Date {
   const date = new Date(d);
@@ -32,6 +32,7 @@ function addDays(d: Date, n: number) {
 }
 
 export default function App() {
+  const { t } = useTranslation();
   const { user, token, currentFamilyId, setCurrentFamilyId, logout } = useAuth();
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
   const [members, setMembers] = useState<Member[]>([]);
@@ -129,9 +130,10 @@ export default function App() {
     fetchEvents();
   };
 
+  const DAYS = t('calendar.days', { returnObjects: true }) as string[];
+  const monthNames = t('calendar.months', { returnObjects: true }) as string[];
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const weekEnd = addDays(weekStart, 6);
-  const monthNames = ['tammikuu', 'helmikuu', 'maaliskuu', 'huhtikuu', 'toukokuu', 'kesäkuu', 'heinäkuu', 'elokuu', 'syyskuu', 'lokakuu', 'marraskuu', 'joulukuu'];
 
   const weekLabel = weekStart.getMonth() === weekEnd.getMonth()
     ? `${weekStart.getDate()}.–${weekEnd.getDate()}. ${monthNames[weekStart.getMonth()]} ${weekStart.getFullYear()}`
@@ -142,7 +144,7 @@ export default function App() {
   }
 
   if (!currentFamilyId || !user) {
-    return <div className="app" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p>Ladataan...</p></div>;
+    return <div className="app" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p>{t('app.loading')}</p></div>;
   }
 
   const currentFamily = user.families.find(f => f.id === currentFamilyId);
@@ -153,7 +155,7 @@ export default function App() {
       <div className="app">
         <header>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <h1>📅 Perheen kalenteri</h1>
+            <h1>📅 {t('app.title')}</h1>
             {user.families.length > 1 && (
               <select
                 className="family-selector"
@@ -168,16 +170,17 @@ export default function App() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div className="week-nav">
-              <button onClick={() => setWeekStart(w => addDays(w, -7))}>◀ Edellinen</button>
+              <button onClick={() => setWeekStart(w => addDays(w, -7))}>{t('calendar.weekNav.prev')}</button>
               <span className="current">{weekLabel}</span>
-              <button onClick={() => setWeekStart(w => addDays(w, 7))}>Seuraava ▶</button>
-              <button onClick={() => setWeekStart(getMonday(new Date()))}>Tänään</button>
+              <button onClick={() => setWeekStart(w => addDays(w, 7))}>{t('calendar.weekNav.next')}</button>
+              <button onClick={() => setWeekStart(getMonday(new Date()))}>{t('calendar.weekNav.today')}</button>
             </div>
             <div className="user-menu">
               <span className="user-name">{user.name}</span>
-              {isOwner && <Link to="/settings" className="btn-sm" title="Perheen asetukset">⚙️</Link>}
-              {user.role === 'superadmin' && <Link to="/admin" className="btn-sm" title="Hallintapaneeli">🔧</Link>}
-              <button className="btn-sm" onClick={logout}>Ulos</button>
+              <LanguageSwitcher />
+              {isOwner && <Link to="/settings" className="btn-sm" title={t('header.familySettings')}>⚙️</Link>}
+              {user.role === 'superadmin' && <Link to="/admin" className="btn-sm" title={t('header.adminPanel')}>🔧</Link>}
+              <button className="btn-sm" onClick={logout}>{t('header.logout')}</button>
             </div>
           </div>
         </header>
