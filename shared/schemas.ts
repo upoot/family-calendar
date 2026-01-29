@@ -24,6 +24,12 @@ export const LoginResponseSchema = z.object({
 });
 
 // ── Family ──────────────────────────────────────────────────────────────────
+export const FamilyOwnerSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  email: z.string(),
+});
+
 export const FamilySchema = z.object({
   id: z.number(),
   name: z.string(),
@@ -31,6 +37,7 @@ export const FamilySchema = z.object({
   invite_code: z.string(),
   created_by: z.number().nullable(),
   created_at: z.string().nullable().optional(),
+  owner: FamilyOwnerSchema.nullable().optional(),
 });
 
 export const FamilyWithUsersSchema = FamilySchema.extend({
