@@ -26,56 +26,58 @@ async function setupUser(request: any) {
   return { email, token, family, member };
 }
 
+async function loginAndWaitForCalendar(page: any, email: string) {
+  await page.goto('/login');
+  await page.locator('input[type="email"]').fill(email);
+  await page.locator('input[type="password"]').fill('password123');
+  await page.click('button[type="submit"]');
+
+  // Wait for calendar to load — may briefly pass through onboarding redirect
+  // but setupUser already created a family so it should land on /
+  await page.waitForURL(/^\/$/, { timeout: 10000 });
+
+  // Wait for calendar grid to be visible
+  await page.locator('.calendar-grid, .member-label').first().waitFor({ timeout: 10000 });
+}
+
 test.describe('Calendar', () => {
   test('navigate weeks', async ({ page, request }) => {
-    const { email, token, family } = await setupUser(request);
-
-    // Login via storing token
-    await page.goto('/login');
-    await page.locator('input[type="email"]').fill(email);
-    await page.locator('input[type="password"]').fill('password123');
-    await page.click('button[type="submit"]');
-    await expect(page).not.toHaveURL(/\/login/, { timeout: 5000 });
+    const { email } = await setupUser(request);
+    await loginAndWaitForCalendar(page, email);
 
     // Navigate weeks using prev/next buttons
-    const prevBtn = page.locator('button').filter({ hasText: /◀|←|edellinen|prev/i }).first();
-    const nextBtn = page.locator('button').filter({ hasText: /▶|→|seuraava|next/i }).first();
+    const prevBtn = page.locator('button').filter({ hasText: /◀|edellinen/i }).first();
+    const nextBtn = page.locator('button').filter({ hasText: /▶|seuraava/i }).first();
 
-    if (await nextBtn.isVisible()) {
-      await nextBtn.click();
-      await page.waitForTimeout(500);
-      await prevBtn.click();
-      await page.waitForTimeout(500);
-    }
+    await expect(nextBtn).toBeVisible({ timeout: 5000 });
+    await nextBtn.click();
+    await page.waitForTimeout(500);
+    await prevBtn.click();
+    await page.waitForTimeout(500);
   });
 
   test('add event via modal', async ({ page, request }) => {
-    const { email, token, family, member } = await setupUser(request);
+    const { email } = await setupUser(request);
+    await loginAndWaitForCalendar(page, email);
 
-    await page.goto('/login');
-    await page.locator('input[type="email"]').fill(email);
-    await page.locator('input[type="password"]').fill('password123');
-    await page.click('button[type="submit"]');
-    await expect(page).not.toHaveURL(/\/login/, { timeout: 5000 });
+    // Click on a calendar cell to open the event modal
+    const cell = page.locator('.droppable-cell').first();
+    await expect(cell).toBeVisible({ timeout: 5000 });
+    await cell.click();
 
-    // Try clicking on a calendar cell to open the event modal
-    await page.waitForTimeout(1000);
-    const cell = page.locator('.droppable-cell, td, .calendar-cell').first();
-    if (await cell.isVisible()) {
-      await cell.click();
-      await page.waitForTimeout(500);
+    // Fill event form in modal
+    const modal = page.locator('.modal-overlay, .modal, [class*="modal"]').first();
+    await expect(modal).toBeVisible({ timeout: 3000 });
 
-      // Fill event form if modal opened
-      const modal = page.locator('.modal, [class*="modal"], dialog');
-      if (await modal.isVisible()) {
-        const titleInput = modal.locator('input[name="title"], input[placeholder*="otsikko"], input[placeholder*="title"], input').first();
-        await titleInput.fill('Test Event');
+    // Fill title
+    const titleInput = modal.locator('input').first();
+    await titleInput.fill('Test Event');
 
-        const submitBtn = modal.locator('button[type="submit"], button').filter({ hasText: /tallenna|save|lisää/i }).first();
-        if (await submitBtn.isVisible()) {
-          await submitBtn.click();
-        }
-      }
+    // Submit
+    const submitBtn = modal.locator('button[type="submit"], button').filter({ hasText: /tallenna|save|lisää/i }).first();
+    if (await submitBtn.isVisible()) {
+      await submitBtn.click();
+      await page.waitForTimeout(1000);
     }
   });
 });
