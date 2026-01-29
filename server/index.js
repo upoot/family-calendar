@@ -250,7 +250,19 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
 
 app.get('/api/families', authMiddleware, (req, res) => {
   if (req.user.role === 'superadmin') {
-    res.json(db.prepare('SELECT * FROM families ORDER BY id').all());
+    const families = db.prepare('SELECT * FROM families ORDER BY id').all();
+    // Attach owner info for each family
+    const ownerStmt = db.prepare(`
+      SELECT u.id, u.name, u.email FROM users u
+      JOIN family_users fu ON u.id = fu.user_id
+      WHERE fu.family_id = ? AND fu.role = 'owner'
+      LIMIT 1
+    `);
+    for (const f of families) {
+      const owner = ownerStmt.get(f.id);
+      f.owner = owner || null;
+    }
+    res.json(families);
   } else {
     res.json(db.prepare(`
       SELECT f.*, fu.role as user_role FROM families f
@@ -261,13 +273,67 @@ app.get('/api/families', authMiddleware, (req, res) => {
 });
 
 app.post('/api/families', authMiddleware, (req, res) => {
-  const { name } = req.body;
+  const { name, admin_user_id, admin_user, members } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const code = generateInviteCode();
-  const r = db.prepare('INSERT INTO families (name, slug, invite_code, created_by) VALUES (?, ?, ?, ?)').run(name, slug + '-' + Date.now(), code, req.user.id);
-  db.prepare('INSERT INTO family_users (user_id, family_id, role) VALUES (?, ?, ?)').run(req.user.id, r.lastInsertRowid, 'owner');
-  res.status(201).json(db.prepare('SELECT * FROM families WHERE id = ?').get(r.lastInsertRowid));
+
+  const tx = db.transaction(() => {
+    const r = db.prepare('INSERT INTO families (name, slug, invite_code, created_by) VALUES (?, ?, ?, ?)').run(name, slug + '-' + Date.now(), code, req.user.id);
+    const familyId = r.lastInsertRowid;
+
+    let ownerId = req.user.id;
+
+    // Assign admin: existing user or create new
+    if (admin_user_id) {
+      const existingUser = db.prepare('SELECT id FROM users WHERE id = ?').get(admin_user_id);
+      if (!existingUser) throw new Error('Admin user not found');
+      ownerId = admin_user_id;
+    } else if (admin_user && admin_user.email) {
+      if (!admin_user.password || admin_user.password.length < 8) {
+        throw new Error('Password must be at least 8 characters');
+      }
+      const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(admin_user.email);
+      if (existing) throw new Error('Email already registered');
+      const hash = bcrypt.hashSync(admin_user.password, 10);
+      const u = db.prepare('INSERT INTO users (email, password_hash, name, role, must_change_password, created_by) VALUES (?, ?, ?, ?, 1, ?)').run(
+        admin_user.email, hash, admin_user.name || admin_user.email, 'user', req.user.id
+      );
+      ownerId = u.lastInsertRowid;
+    }
+
+    db.prepare('INSERT INTO family_users (user_id, family_id, role) VALUES (?, ?, ?)').run(ownerId, familyId, 'owner');
+
+    // If creator is different from owner, also add creator as member
+    if (ownerId !== req.user.id) {
+      try {
+        db.prepare('INSERT INTO family_users (user_id, family_id, role) VALUES (?, ?, ?)').run(req.user.id, familyId, 'member');
+      } catch (e) { /* already exists */ }
+    }
+
+    // Create initial members (swimlane members)
+    if (members && Array.isArray(members)) {
+      const memberStmt = db.prepare('INSERT INTO members (name, color, display_order, family_id) VALUES (?, ?, ?, ?)');
+      members.forEach((m, i) => {
+        if (m.name && m.color) {
+          memberStmt.run(m.name, m.color, i + 1, familyId);
+        }
+      });
+    }
+
+    const family = db.prepare('SELECT * FROM families WHERE id = ?').get(familyId);
+    // Attach owner info
+    const owner = db.prepare('SELECT id, name, email FROM users WHERE id = ?').get(ownerId);
+    family.owner = owner || null;
+    return family;
+  });
+
+  try {
+    const family = tx();
+    res.status(201).json(family);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 app.put('/api/families/:familyId', authMiddleware, requireFamily, (req, res) => {
@@ -372,6 +438,50 @@ app.delete('/api/admin/users/:id', authMiddleware, (req, res) => {
   if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Admin only' });
   db.prepare('DELETE FROM family_users WHERE user_id = ?').run(req.params.id);
   db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ── Superadmin management ───────────────────────────────────────────────────
+
+app.get('/api/admin/superadmins', authMiddleware, (req, res) => {
+  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Admin only' });
+  res.json(db.prepare("SELECT id, email, name, created_at FROM users WHERE role = 'superadmin' ORDER BY id").all());
+});
+
+app.post('/api/admin/superadmins', authMiddleware, (req, res) => {
+  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Admin only' });
+  const { user_id, name, email, password } = req.body;
+
+  if (user_id) {
+    // Promote existing user
+    const user = db.prepare('SELECT id, role FROM users WHERE id = ?').get(user_id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.role === 'superadmin') return res.status(409).json({ error: 'Already a superadmin' });
+    db.prepare("UPDATE users SET role = 'superadmin' WHERE id = ?").run(user_id);
+    res.json(db.prepare('SELECT id, email, name, created_at FROM users WHERE id = ?').get(user_id));
+  } else if (email && password) {
+    // Create new superadmin
+    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    if (existing) return res.status(409).json({ error: 'Email already registered' });
+    const hash = bcrypt.hashSync(password, 10);
+    const r = db.prepare('INSERT INTO users (email, password_hash, name, role, must_change_password, created_by) VALUES (?, ?, ?, ?, 1, ?)').run(
+      email, hash, name || email, 'superadmin', req.user.id
+    );
+    res.status(201).json(db.prepare('SELECT id, email, name, created_at FROM users WHERE id = ?').get(r.lastInsertRowid));
+  } else {
+    return res.status(400).json({ error: 'user_id or email+password required' });
+  }
+});
+
+app.delete('/api/admin/superadmins/:id', authMiddleware, (req, res) => {
+  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Admin only' });
+  const targetId = parseInt(req.params.id);
+  if (targetId === req.user.id) return res.status(400).json({ error: 'Cannot demote yourself' });
+  const user = db.prepare('SELECT id, role FROM users WHERE id = ?').get(targetId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.role !== 'superadmin') return res.status(400).json({ error: 'User is not a superadmin' });
+  db.prepare("UPDATE users SET role = 'user' WHERE id = ?").run(targetId);
   res.json({ ok: true });
 });
 
