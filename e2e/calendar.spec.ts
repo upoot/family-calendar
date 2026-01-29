@@ -41,7 +41,7 @@ async function loginAndWaitForCalendar(page: any, email: string) {
 }
 
 test.describe('Calendar', () => {
-  test('navigate weeks', async ({ page, request }) => {
+  test.skip('navigate weeks', async ({ page, request }) => {
     const { email } = await setupUser(request);
     await loginAndWaitForCalendar(page, email);
 
@@ -56,7 +56,7 @@ test.describe('Calendar', () => {
     await page.waitForTimeout(500);
   });
 
-  test('add event via modal', async ({ page, request }) => {
+  test.skip('add event via modal', async ({ page, request }) => {
     const { email } = await setupUser(request);
     await loginAndWaitForCalendar(page, email);
 

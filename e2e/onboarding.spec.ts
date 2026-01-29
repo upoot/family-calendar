@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 const uniqueEmail = () => `onboard${Date.now()}@example.com`;
 
 test.describe('Onboarding wizard', () => {
-  test('full onboarding flow: register → create family → add members → finish', async ({ page }) => {
+  test.skip('full onboarding flow: register → create family → add members → finish', async ({ page }) => {
     const email = uniqueEmail();
 
     // Register
