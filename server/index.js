@@ -501,6 +501,7 @@ app.delete('/api/admin/superadmins/:id', authMiddleware, (req, res) => {
 app.delete('/api/admin/families/:id', authMiddleware, (req, res) => {
   if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Admin only' });
   db.prepare('DELETE FROM family_users WHERE family_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM categories WHERE family_id = ?').run(req.params.id);
   db.prepare('DELETE FROM events WHERE family_id = ?').run(req.params.id);
   db.prepare('DELETE FROM members WHERE family_id = ?').run(req.params.id);
   db.prepare('DELETE FROM families WHERE id = ?').run(req.params.id);
