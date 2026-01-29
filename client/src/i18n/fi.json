@@ -10,6 +10,15 @@
       "prev": "◀ Edellinen",
       "next": "Seuraava ▶",
       "today": "Tänään"
+    },
+    "copyWeek": {
+      "button": "Kopioi viikko",
+      "confirm": "Kopioidaanko {{count}} tapahtumaa seuraavalle viikolle?",
+      "copy": "Kopioi",
+      "cancel": "Peruuta",
+      "success": "Kopioitiin {{copied}} tapahtumaa",
+      "noEvents": "Ei kopioitavia tapahtumia",
+      "skipped": "{{skipped}} ohitettu (jo olemassa)"
     }
   },
   "header": {
