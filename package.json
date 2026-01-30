@@ -1,5 +1,6 @@
 {
   "name": "family-calendar",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
