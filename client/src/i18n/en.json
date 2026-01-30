@@ -307,5 +307,12 @@
     "bought": "{{done}} / {{total}} bought",
     "clearChecked": "Clear bought",
     "noCategory": "No category"
+  },
+  "timeline": {
+    "title": "Upcoming events",
+    "loading": "Loading...",
+    "noEvents": "No upcoming events",
+    "today": "Today",
+    "tomorrow": "Tomorrow"
   }
 }

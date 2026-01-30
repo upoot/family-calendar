@@ -307,5 +307,12 @@
     "bought": "{{done}} / {{total}} ostettu",
     "clearChecked": "Tyhjennä ostetut",
     "noCategory": "Ei kategoriaa"
+  },
+  "timeline": {
+    "title": "Tulevat tapahtumat",
+    "loading": "Ladataan...",
+    "noEvents": "Ei tulevia tapahtumia",
+    "today": "Tänään",
+    "tomorrow": "Huomenna"
   }
 }
