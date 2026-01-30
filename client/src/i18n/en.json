@@ -4,8 +4,29 @@
     "loading": "Loading..."
   },
   "calendar": {
-    "days": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-    "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "months": [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+    ],
     "weekNav": {
       "prev": "◀ Previous",
       "next": "Next ▶",
@@ -238,10 +259,60 @@
     "description": "Description",
     "recurringWeekly": "Recurring weekly",
     "weekday": "Weekday",
-    "weekdays": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+    "weekdays": [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday"
+    ],
     "date": "Date",
     "delete": "Delete",
     "cancel": "Cancel",
     "save": "Save"
+  },
+  "nlp": {
+    "placeholder": "shop: milk / task: wash car / book: practice Tue 5pm",
+    "addedShopping": "🛒 Added to shopping list: {{item}}",
+    "addedTodo": "✅ Task added: {{item}}",
+    "eventHint": "📅 \"{{item}}\" — click a calendar cell to add",
+    "queryHint": "🔍 \"{{item}}\" — search coming soon",
+    "unknown": "🤔 Didn't recognize: \"{{item}}\"",
+    "error": "❌ Error: {{error}}"
+  },
+  "widgets": {
+    "weeklyTodos": "Weekly tasks",
+    "shoppingList": "Shopping list",
+    "allLink": "All →",
+    "noTodos": "No tasks ✨",
+    "emptyList": "List empty 🎉",
+    "bought": "{{count}} bought",
+    "more": "+{{count}} more",
+    "done": "{{done}}/{{total}}"
+  },
+  "todo": {
+    "title": "Weekly tasks",
+    "add": "Add task...",
+    "noAssignee": "No assignee",
+    "empty": "No tasks for this week ✨",
+    "done": "{{done}} / {{total}} done",
+    "today": "Today"
+  },
+  "shopping": {
+    "title": "🛒 Shopping list",
+    "add": "Add item...",
+    "empty": "Shopping list is empty 🎉",
+    "bought": "{{done}} / {{total}} bought",
+    "clearChecked": "Clear bought",
+    "noCategory": "No category"
+  },
+  "timeline": {
+    "title": "Upcoming events",
+    "loading": "Loading...",
+    "noEvents": "No upcoming events",
+    "today": "Today",
+    "tomorrow": "Tomorrow"
   }
 }
