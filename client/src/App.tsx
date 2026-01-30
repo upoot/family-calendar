@@ -247,7 +247,7 @@ export default function App() {
           </div>
         </header>
 
-        <NLPBar familyId={currentFamilyId} token={token} memberNames={members?.map(m => m.name) || []} onAction={() => { fetchEvents(); refreshWidgets(); }} />
+        <NLPBar familyId={currentFamilyId} token={token} members={members} memberNames={members?.map(m => m.name) || []} onAction={() => { fetchEvents(); refreshWidgets(); }} />
 
         <div className="dashboard-layout">
         <div className="dashboard-main">

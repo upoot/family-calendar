@@ -109,6 +109,7 @@
       "members": "👥 Jäsenet",
       "eventTypes": "🏷️ Tapahtumatyypit",
       "users": "👤 Käyttäjät",
+      "integrations": "🔗 Integraatiot",
       "invite": "📩 Kutsut"
     },
     "newMemberPlaceholder": "Uuden jäsenen nimi",
@@ -157,6 +158,25 @@
       "deleteConfirm": "Poista tapahtumatyyppi?",
       "inUseWarning": "Tätä tyyppiä käytetään {{count}} tapahtumassa. Poista ensin tapahtumat.",
       "noCategories": "Ei tapahtumia vielä."
+    },
+    "integrations": {
+      "school": {
+        "description": "Synkronoi kokeet koululta kalenteriin automaattisesti.",
+        "baseUrl": "URL",
+        "username": "Käyttäjätunnus",
+        "usernamePlaceholder": "Koulun käyttäjätunnuksesi",
+        "password": "Salasana",
+        "passwordPlaceholder": "Koulun salasanasi",
+        "syncNow": "Synkronoi nyt",
+        "syncing": "Synkronoidaan...",
+        "lastSync": "Viimeisin synkronointi",
+        "rateLimit": "Synkronointi on rajoitettu max 1 kerta per 15 minuuttia.",
+        "allFieldsRequired": "Täytä kaikki kentät (URL, käyttäjätunnus, salasana)",
+        "credentialsRequired": "Täytä käyttäjätunnus ja salasana",
+        "saveFirst": "Tallenna asetukset ensin",
+        "settingsSaved": "Asetukset tallennettu!",
+        "syncSuccess": "Synkronoitu! Lisätty {{added}} uutta koetta (yhteensä {{total}})."
+      }
     }
   },
   "admin": {
@@ -277,6 +297,7 @@
     "placeholder": "kauppa: maitoa / tehtävä: pese auto / varaa: treeni ti klo 17",
     "addedShopping": "🛒 Lisätty kauppalistaan: {{item}}",
     "addedTodo": "✅ Tehtävä lisätty: {{item}}",
+    "addedEvent": "📅 Tapahtuma lisätty: {{item}}",
     "eventHint": "📅 \"{{item}}\" — klikkaa kalenterista solua lisäämiseen",
     "queryHint": "🔍 \"{{item}}\" — haku tulossa pian",
     "unknown": "🤔 En tunnistanut: \"{{item}}\"",

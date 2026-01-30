@@ -1,10 +1,17 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+interface Member {
+  id: number;
+  name: string;
+  color: string;
+}
+
 interface Props {
   familyId: number | null;
   token: string | null;
   memberNames?: string[];
+  members?: Member[];
   onAction: () => void;
 }
 
@@ -17,7 +24,7 @@ function getISOWeek(): string {
   return `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
 }
 
-export default function NLPBar({ familyId, token, memberNames = [], onAction }: Props) {
+export default function NLPBar({ familyId, token, memberNames = [], members = [], onAction }: Props) {
   const [input, setInput] = useState('');
   const [status, setStatus] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -61,9 +68,28 @@ export default function NLPBar({ familyId, token, memberNames = [], onAction }: 
           setStatus({ text: t('nlp.addedTodo', { item: parsed.title || input }), type: 'success' });
           break;
         }
-        case 'create_event':
-          setStatus({ text: t('nlp.eventHint', { item: parsed.title || input }), type: 'info' });
+        case 'create_event': {
+          const targetMemberId = parsed.memberId || (members.length > 0 ? members[0].id : null);
+          if (!targetMemberId) {
+            setStatus({ text: t('nlp.error', { error: 'No members found' }), type: 'error' });
+            break;
+          }
+          const eventRes = await fetch('/api/events', {
+            method: 'POST', headers,
+            body: JSON.stringify({
+              family_id: familyId,
+              member_id: targetMemberId,
+              title: parsed.title || input,
+              date: parsed.date,
+              start_time: parsed.startTime,
+              end_time: parsed.endTime,
+              is_recurring: false,
+            }),
+          });
+          if (!eventRes.ok) throw new Error(`Event: ${eventRes.status}`);
+          setStatus({ text: t('nlp.addedEvent', { item: parsed.title || input }), type: 'success' });
           break;
+        }
         case 'query_availability':
           setStatus({ text: t('nlp.queryHint', { item: parsed.title || input }), type: 'info' });
           break;
