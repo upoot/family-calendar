@@ -99,6 +99,7 @@ export default function App() {
     await fetch(url, { method, headers: authHeaders, body: JSON.stringify(payload) });
     setModal(null);
     fetchEvents();
+    refreshWidgets();
   };
 
   const handleDelete = async () => {
@@ -106,6 +107,7 @@ export default function App() {
     await fetch(`/api/events/${modal.event.id}`, { method: 'DELETE', headers: authHeaders });
     setModal(null);
     fetchEvents();
+    refreshWidgets();
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -144,6 +146,7 @@ export default function App() {
     });
 
     fetchEvents();
+    refreshWidgets();
   };
 
   const nonRecurringCount = events.filter(e => !e.is_recurring).length;
@@ -166,6 +169,8 @@ export default function App() {
         setCopyWeekMsg(msg);
       }
       setWeekStart(w => addDays(w, 7));
+      fetchEvents();
+      refreshWidgets();
       setTimeout(() => setCopyWeekMsg(null), 4000);
     }
   };
@@ -272,9 +277,7 @@ export default function App() {
           ))}
         </div>
         
-        <div className="timeline-divider">
-          <span className="timeline-divider-icon">✨</span>
-        </div>
+        <div className="timeline-divider"></div>
         
         <Timeline familyId={currentFamilyId} token={token} refreshKey={widgetRefresh} onEventClick={jumpToDate} />
         </div>{/* end dashboard-main */}
