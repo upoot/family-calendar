@@ -11,6 +11,7 @@ import AppNav from './components/AppNav';
 import NLPBar from './components/NLPBar';
 import TodoWidget from './components/TodoWidget';
 import ShoppingWidget from './components/ShoppingWidget';
+import Timeline from './components/Timeline';
 import type { Member, Category, CalendarEvent, EventFormData } from './types';
 
 function getMonday(d: Date): Date {
@@ -53,6 +54,13 @@ export default function App() {
   const [copyWeekMsg, setCopyWeekMsg] = useState<string | null>(null);
   const [widgetRefresh, setWidgetRefresh] = useState(0);
   const refreshWidgets = () => setWidgetRefresh(k => k + 1);
+
+  const jumpToDate = (dateStr: string) => {
+    const date = new Date(dateStr + 'T00:00:00');
+    setWeekStart(getMonday(date));
+    // Scroll to top of calendar
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const weekStr = fmt(weekStart);
   const authHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
@@ -263,6 +271,12 @@ export default function App() {
             </React.Fragment>
           ))}
         </div>
+        
+        <div className="timeline-divider">
+          <span className="timeline-divider-icon">✨</span>
+        </div>
+        
+        <Timeline familyId={currentFamilyId} token={token} refreshKey={widgetRefresh} onEventClick={jumpToDate} />
         </div>{/* end dashboard-main */}
 
         <aside className="dashboard-sidebar">
