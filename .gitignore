@@ -4,3 +4,7 @@ node_modules/
 *.db-shm
 dist/
 test-results/
+
+# SQLite temp files
+*.db-shm
+*.db-wal

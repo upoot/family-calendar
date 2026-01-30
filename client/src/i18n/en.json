@@ -109,6 +109,7 @@
       "members": "👥 Members",
       "eventTypes": "🏷️ Event types",
       "users": "👤 Users",
+      "integrations": "🔗 Integrations",
       "invite": "📩 Invites"
     },
     "newMemberPlaceholder": "New member name",
@@ -157,6 +158,25 @@
       "deleteConfirm": "Delete event type?",
       "inUseWarning": "This type is used by {{count}} events. Remove events first.",
       "noCategories": "No event types yet."
+    },
+    "integrations": {
+      "school": {
+        "description": "Sync exams from school calendar automatically.",
+        "baseUrl": "URL",
+        "username": "Username",
+        "usernamePlaceholder": "Your School username",
+        "password": "Password",
+        "passwordPlaceholder": "Your School password",
+        "syncNow": "Sync now",
+        "syncing": "Syncing...",
+        "lastSync": "Last sync",
+        "rateLimit": "Sync is limited to max 1 time per 15 minutes.",
+        "allFieldsRequired": "Fill in all fields (URL, username, password)",
+        "credentialsRequired": "Fill in username and password",
+        "saveFirst": "Save settings first",
+        "settingsSaved": "Settings saved!",
+        "syncSuccess": "Synced! Added {{added}} new exams ({{total}} total)."
+      }
     }
   },
   "admin": {
@@ -277,6 +297,7 @@
     "placeholder": "shop: milk / task: wash car / book: practice Tue 5pm",
     "addedShopping": "🛒 Added to shopping list: {{item}}",
     "addedTodo": "✅ Task added: {{item}}",
+    "addedEvent": "📅 Event added: {{item}}",
     "eventHint": "📅 \"{{item}}\" — click a calendar cell to add",
     "queryHint": "🔍 \"{{item}}\" — search coming soon",
     "unknown": "🤔 Didn't recognize: \"{{item}}\"",
