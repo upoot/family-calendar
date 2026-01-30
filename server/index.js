@@ -920,11 +920,76 @@ function detectIntent(text) {
 
 function extractMember(text, members) {
   const lower = text.toLowerCase();
+  // Check @mentions first
+  const mentionMatch = text.match(/@(\w+)/);
+  if (mentionMatch) {
+    const name = mentionMatch[1].toLowerCase();
+    const found = members.find(m => m.name.toLowerCase().startsWith(name));
+    if (found) return found;
+  }
+  // Check full name mentions
   const sorted = [...members].sort((a, b) => b.name.length - a.name.length);
   for (const m of sorted) {
     if (lower.includes(m.name.toLowerCase())) return m;
   }
   return null;
+}
+
+function parseDateTime(text) {
+  const lower = text.toLowerCase();
+  const now = new Date();
+  
+  // Parse day
+  let targetDate = new Date(now);
+  const dayMap = {
+    ma: 1, maanantai: 1, monday: 1,
+    ti: 2, tiistai: 2, tuesday: 2,
+    ke: 3, keskiviikko: 3, wednesday: 3,
+    to: 4, torstai: 4, thursday: 4,
+    pe: 5, perjantai: 5, friday: 5,
+    la: 6, lauantai: 6, saturday: 6,
+    su: 0, sunnuntai: 0, sunday: 0,
+  };
+  
+  // Check for specific weekday
+  for (const [key, targetDay] of Object.entries(dayMap)) {
+    const regex = new RegExp(`\\b${key}\\b`, 'i');
+    if (regex.test(lower)) {
+      const currentDay = now.getDay();
+      let diff = targetDay - currentDay;
+      if (diff <= 0) diff += 7; // Next occurrence
+      targetDate.setDate(now.getDate() + diff);
+      break;
+    }
+  }
+  
+  // Check for relative days
+  if (/\b(huomenna|tomorrow)\b/i.test(lower)) {
+    targetDate.setDate(now.getDate() + 1);
+  } else if (/\b(ylihuomenna|overmorrow)\b/i.test(lower)) {
+    targetDate.setDate(now.getDate() + 2);
+  } else if (/\btänään|today\b/i.test(lower)) {
+    targetDate = new Date(now);
+  }
+  
+  const dateStr = targetDate.toISOString().split('T')[0];
+  
+  // Parse time
+  let startTime = '09:00';
+  let endTime = '10:00';
+  
+  // Match "klo 18" or "kello 18" or "18:00" or "18.00"
+  const timeMatch = lower.match(/(?:klo|kello)?\s*(\d{1,2})[:.h]?(\d{2})?/);
+  if (timeMatch) {
+    const hour = parseInt(timeMatch[1]);
+    const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+    if (hour >= 0 && hour <= 23) {
+      startTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+      endTime = `${String(hour + 1).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    }
+  }
+  
+  return { date: dateStr, startTime, endTime };
 }
 
 app.post('/api/parse', authMiddleware, (req, res) => {
@@ -938,18 +1003,33 @@ app.post('/api/parse', authMiddleware, (req, res) => {
 
   const type = detectIntent(text);
   const member = extractMember(text, members);
+  const dateTime = parseDateTime(text);
 
   // Strip explicit prefix (kauppa: xxx → xxx)
   let title = text.replace(/^(kauppa|shop|osta|tehtävä|todo|task|muista|varaa|event|tapahtuma)\s*:\s*/i, '');
+  // Strip @mentions
+  title = title.replace(/@\w+/g, '');
   if (member) title = title.replace(new RegExp(member.name, 'gi'), '');
   for (const keywords of Object.values(COMMANDS)) {
     for (const kw of keywords) {
       title = title.replace(new RegExp(`\\b${kw}\\S*`, 'gi'), '');
     }
   }
+  // Strip day/time indicators
+  title = title.replace(/\b(ma|ti|ke|to|pe|la|su|maanantai|tiistai|keskiviikko|torstai|perjantai|lauantai|sunnuntai|monday|tuesday|wednesday|thursday|friday|saturday|sunday|huomenna|ylihuomenna|tänään|tomorrow|today)\b/gi, '');
+  title = title.replace(/(?:klo|kello)?\s*\d{1,2}[:.h]?\d{0,2}/gi, '');
   title = title.replace(/\s+/g, ' ').trim();
 
-  res.json({ type, title, memberId: member?.id, memberName: member?.name, raw: text });
+  res.json({ 
+    type, 
+    title, 
+    memberId: member?.id, 
+    memberName: member?.name, 
+    date: dateTime.date,
+    startTime: dateTime.startTime,
+    endTime: dateTime.endTime,
+    raw: text 
+  });
 });
 
 // ── Todos ───────────────────────────────────────────────────────────────────
@@ -1043,6 +1123,170 @@ app.delete('/api/families/:familyId/shopping', authMiddleware, requireFamily, (r
   // Clear checked items
   db.prepare('DELETE FROM shopping_items WHERE family_id = ? AND checked = 1').run(req.familyId);
   res.status(204).end();
+});
+
+// ── Integrations ────────────────────────────────────────────────────────────
+
+// Rate limiting: max 1 sync per 15 minutes per family per integration
+function checkSyncRateLimit(familyId, integrationType) {
+  const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const recent = db.prepare(
+    'SELECT COUNT(*) as count FROM integration_syncs WHERE family_id = ? AND integration_type = ? AND synced_at > ?'
+  ).get(familyId, integrationType, fifteenMinutesAgo);
+  
+  return recent.count === 0;
+}
+
+function logSync(familyId, integrationType, eventCount, status, errorMessage = null) {
+  db.prepare(
+    'INSERT INTO integration_syncs (family_id, integration_type, event_count, status, error_message) VALUES (?, ?, ?, ?, ?)'
+  ).run(familyId, integrationType, eventCount, status, errorMessage);
+}
+
+// GET integration settings
+app.get('/api/families/:familyId/integrations/:type', authMiddleware, requireFamily, (req, res) => {
+  const { type } = req.params;
+  const settings = db.prepare(
+    'SELECT id, integration_type, config, last_sync FROM integration_settings WHERE family_id = ? AND integration_type = ?'
+  ).get(req.familyId, type);
+  
+  res.json(settings || { integration_type: type, config: null, last_sync: null });
+});
+
+// Save integration settings
+app.put('/api/families/:familyId/integrations/:type', authMiddleware, requireFamily, (req, res) => {
+  const { type } = req.params;
+  const { config } = req.body;
+  
+  if (!config) return res.status(400).json({ error: 'config required' });
+  
+  // Check if exists
+  const existing = db.prepare(
+    'SELECT id FROM integration_settings WHERE family_id = ? AND integration_type = ?'
+  ).get(req.familyId, type);
+  
+  if (existing) {
+    db.prepare(
+      'UPDATE integration_settings SET config = ?, updated_at = CURRENT_TIMESTAMP WHERE family_id = ? AND integration_type = ?'
+    ).run(JSON.stringify(config), req.familyId, type);
+  } else {
+    db.prepare(
+      'INSERT INTO integration_settings (family_id, integration_type, config) VALUES (?, ?, ?)'
+    ).run(req.familyId, type, JSON.stringify(config));
+  }
+  
+  res.json({ success: true });
+});
+
+// Sync School exams
+app.post('/api/families/:familyId/integrations/school/sync', authMiddleware, requireFamily, async (req, res) => {
+  const { credentials } = req.body; // { username, password }
+  
+  if (!credentials?.username || !credentials?.password) {
+    return res.status(400).json({ error: 'School credentials required' });
+  }
+  
+  // Get saved settings to check baseUrl
+  const settings = db.prepare(
+    'SELECT config FROM integration_settings WHERE family_id = ? AND integration_type = ?'
+  ).get(req.familyId, 'school');
+  
+  const config = settings?.config ? JSON.parse(settings.config) : {};
+  
+  if (!config.baseUrl) {
+    return res.status(400).json({ error: 'School URL not configured - save settings first' });
+  }
+  
+  // Rate limit check
+  if (!checkSyncRateLimit(req.familyId, 'school')) {
+    logSync(req.familyId, 'school', 0, 'rate_limited', 'Too many sync attempts');
+    return res.status(429).json({ error: 'Rate limit: max 1 sync per 15 minutes' });
+  }
+  
+  try {
+    // Get session cookies from existing settings
+    const sessionData = settings?.session_data ? JSON.parse(settings.session_data) : null;
+    
+    // Import scraper dynamically
+    const { scrapeSchoolExams } = await import('./integrations/school-scraper.js');
+    
+    // Run scraper
+    const { exams, cookies } = await scrapeSchoolExams(credentials, {
+      baseUrl: config.baseUrl, // Already validated above
+      sessionCookies: sessionData
+    });
+    
+    // Get or ensure "Koe" category exists
+    let examCategory = db.prepare('SELECT id FROM categories WHERE name = ? AND family_id IS NULL').get('Koe');
+    if (!examCategory) {
+      // Create global Koe category if missing
+      const result = db.prepare(
+        'INSERT INTO categories (name, icon, family_id, display_order) VALUES (?, ?, NULL, 100)'
+      ).run('Koe', '📝');
+      examCategory = { id: result.lastInsertRowid };
+    }
+    
+    // Get family members for mapping
+    const familyMembers = db.prepare('SELECT id, name FROM members WHERE family_id = ?').all(req.familyId);
+    
+    if (familyMembers.length === 0) {
+      throw new Error('No members found in family - create a member first');
+    }
+    
+    // Helper: Match student name to family member (fuzzy match by first name)
+    const matchMember = (studentName) => {
+      if (!studentName) return familyMembers[0].id; // Default to first member
+      
+      const normalized = studentName.toLowerCase().trim();
+      
+      // Try exact first name match
+      const exactMatch = familyMembers.find(m => 
+        m.name.toLowerCase().split(/\s+/)[0] === normalized
+      );
+      if (exactMatch) return exactMatch.id;
+      
+      // Try starts-with match (e.g., "Ain" matches "Aino")
+      const startsWithMatch = familyMembers.find(m => 
+        m.name.toLowerCase().split(/\s+/)[0].startsWith(normalized)
+      );
+      if (startsWithMatch) return startsWithMatch.id;
+      
+      // Fallback to first member
+      return familyMembers[0].id;
+    };
+    
+    // Save exams to calendar (only if they don't already exist)
+    let addedCount = 0;
+    
+    for (const exam of exams) {
+      // Check if exam already exists
+      const existing = db.prepare(
+        'SELECT id FROM events WHERE family_id = ? AND title = ? AND date = ?'
+      ).get(req.familyId, exam.title, exam.date);
+      
+      if (!existing) {
+        const memberId = matchMember(exam.studentName);
+        db.prepare(
+          'INSERT INTO events (family_id, member_id, category_id, title, date, start_time, end_time, is_recurring) VALUES (?, ?, ?, ?, ?, ?, ?, 0)'
+        ).run(req.familyId, memberId, examCategory.id, exam.title, exam.date, exam.time, exam.time);
+        addedCount++;
+      }
+    }
+    
+    // Update settings with new session cookies
+    db.prepare(
+      'UPDATE integration_settings SET session_data = ?, last_sync = CURRENT_TIMESTAMP WHERE family_id = ? AND integration_type = ?'
+    ).run(JSON.stringify(cookies), req.familyId, 'school');
+    
+    // Log sync
+    logSync(req.familyId, 'school', addedCount, 'success');
+    
+    res.json({ success: true, added: addedCount, total: exams.length });
+  } catch (error) {
+    console.error('[School sync error]', error);
+    logSync(req.familyId, 'school', 0, 'error', error.message);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // ── Start ───────────────────────────────────────────────────────────────────
