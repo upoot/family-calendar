@@ -121,31 +121,21 @@ export default function Timeline({ familyId, token, refreshKey, onEventClick }: 
     }
   }, [loading, hasMore, daysAhead, familyId, token]);
 
-  const getWeekNumber = (dateStr: string) => {
-    const date = new Date(dateStr + 'T00:00:00');
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-    return `${d.getUTCFullYear()}-W${weekNo}`;
-  };
-
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr + 'T00:00:00');
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    if (date.getTime() === today.getTime()) return t('timeline.today');
-    if (date.getTime() === tomorrow.getTime()) return t('timeline.tomorrow');
-    
-    const options: Intl.DateTimeFormatOptions = { 
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric' 
-    };
-    return date.toLocaleDateString('fi-FI', options);
+    const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
+    const day = date.getDate();
+    return `${weekday} ${day}`;
+  };
+
+  const getWeekNumber = (dateStr: string) => {
+    const date = new Date(dateStr + 'T00:00:00');
+    // ISO 8601 week number
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
   };
 
   // Group events by date
@@ -156,29 +146,48 @@ export default function Timeline({ familyId, token, refreshKey, onEventClick }: 
   }, {} as Record<string, TimelineEvent[]>);
 
   const dates = Object.keys(eventsByDate);
-  
-  // Group dates by week
-  const datesByWeek = dates.reduce((acc, date) => {
-    const week = getWeekNumber(date);
-    if (!acc[week]) acc[week] = [];
-    acc[week].push(date);
-    return acc;
-  }, {} as Record<string, string[]>);
-  
-  const weeks = Object.keys(datesByWeek);
+
+  // Get unique members
+  const uniqueMembers = Array.from(new Set(events.map(e => JSON.stringify({ name: e.member_name, color: e.member_color }))))
+    .map(s => JSON.parse(s));
+
+  console.log('[Timeline] Rendering:', { eventCount: events.length, dateCount: dates.length, dates: dates.slice(0, 5) });
 
   return (
     <div className="timeline-widget">
-      <h3 className="timeline-title">📅 {t('timeline.title')}</h3>
+      <div className="timeline-header">
+        <h3 className="timeline-title">📅 {t('timeline.title')}</h3>
+        <div className="timeline-legend">
+          {uniqueMembers.map(member => {
+            const initials = member.name.length <= 2 ? member.name : member.name.slice(0, 2);
+            return (
+              <div key={member.name} className="timeline-legend-item">
+                <span className="timeline-legend-avatar" style={{ background: member.color }}>
+                  {initials}
+                </span>
+                <span className="timeline-legend-name">{member.name}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
       <div className="timeline-list" ref={scrollRef} onScroll={handleScroll}>
         {!events.length && !loading && (
           <div className="timeline-empty">{t('timeline.noEvents')}</div>
         )}
-        {weeks.map(week => (
-          <div key={week} className="timeline-week-group">
-            <div className="timeline-week-header">Viikko {week.split('-W')[1]}</div>
-            {datesByWeek[week].map(date => (
-              <div key={date} className="timeline-day">
+        {dates.map((date, idx) => {
+          const currentWeek = getWeekNumber(date);
+          const prevWeek = idx > 0 ? getWeekNumber(dates[idx - 1]) : null;
+          const showWeekDivider = idx === 0 || (prevWeek !== null && currentWeek !== prevWeek);
+          
+          return (
+            <div key={date}>
+              {showWeekDivider && (
+                <div className="timeline-week-divider">
+                  <span className="timeline-week-label">Viikko {currentWeek}</span>
+                </div>
+              )}
+              <div className="timeline-day">
                 <div className="timeline-date">{formatDate(date)}</div>
                 <div className="timeline-events-row">
                   {eventsByDate[date].map(event => (
@@ -191,20 +200,17 @@ export default function Timeline({ familyId, token, refreshKey, onEventClick }: 
                         borderColor: event.member_color + '40'
                       }}
                     >
-                      <div className="timeline-event-content">
-                        <div className="timeline-event-title">
-                          {event.category_icon && <span>{event.category_icon} </span>}
-                          {event.title}
-                        </div>
-                        <span className="timeline-time">{event.start_time}</span>
+                      <div className="timeline-event-title">
+                        {event.category_icon && <span>{event.category_icon} </span>}
+                        {event.title} {event.start_time.slice(0, 5)}
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-            ))}
-          </div>
-        ))}
+            </div>
+          );
+        })}
         {loading && (
           <div className="timeline-loading">{t('timeline.loading')}</div>
         )}

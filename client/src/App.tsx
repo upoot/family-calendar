@@ -36,6 +36,14 @@ function addDays(d: Date, n: number) {
   return r;
 }
 
+function getWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+}
+
 export default function App() {
   const { t } = useTranslation();
   const { user, token, currentFamilyId, setCurrentFamilyId, logout } = useAuth();
@@ -179,6 +187,7 @@ export default function App() {
   const monthNames = t('calendar.months', { returnObjects: true }) as string[];
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const weekEnd = addDays(weekStart, 6);
+  const weekNumber = getWeekNumber(weekStart);
 
   const weekLabel = weekStart.getMonth() === weekEnd.getMonth()
     ? `${weekStart.getDate()}.–${weekEnd.getDate()}. ${monthNames[weekStart.getMonth()]} ${weekStart.getFullYear()}`
@@ -216,7 +225,10 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div className="week-nav">
               <button onClick={() => setWeekStart(w => addDays(w, -7))}>{t('calendar.weekNav.prev')}</button>
-              <span className="current">{weekLabel}</span>
+              <span className="current">
+                {weekLabel}
+                <span className="week-number">Viikko {weekNumber}</span>
+              </span>
               <button onClick={() => setWeekStart(w => addDays(w, 7))}>{t('calendar.weekNav.next')}</button>
               <button onClick={() => setWeekStart(getMonday(new Date()))}>{t('calendar.weekNav.today')}</button>
               <button
@@ -248,10 +260,14 @@ export default function App() {
             </div>
           ))}
 
-          {members.map(member => (
+          {members.map(member => {
+            const initials = member.name.length <= 2 ? member.name : member.name.slice(0, 2);
+            return (
             <React.Fragment key={member.id}>
               <div key={`label-${member.id}`} className="member-label">
-                <span className="member-dot" style={{ background: member.color }} />
+                <span className="member-avatar" style={{ background: member.color }}>
+                  {initials}
+                </span>
                 {member.name}
               </div>
               {Array.from({ length: 7 }, (_, dayIdx) => {
@@ -274,7 +290,8 @@ export default function App() {
                 );
               })}
             </React.Fragment>
-          ))}
+            );
+          })}
         </div>
         
         <div className="timeline-divider"></div>
