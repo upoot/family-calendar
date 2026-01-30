@@ -677,20 +677,28 @@ app.delete('/api/categories/:id', authMiddleware, (req, res) => {
 // ── Events (scoped by family) ───────────────────────────────────────────────
 
 app.get('/api/events', authMiddleware, (req, res) => {
-  const { week, familyId } = req.query;
-  if (!week) return res.status(400).json({ error: 'week parameter required' });
+  const { week, start, end, familyId } = req.query;
   if (!familyId) return res.status(400).json({ error: 'familyId required' });
+  
+  // Support both week (calendar) and start/end (timeline) queries
+  let startStr, endStr;
+  if (week) {
+    const weekStart = new Date(week);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    startStr = weekStart.toISOString().slice(0, 10);
+    endStr = weekEnd.toISOString().slice(0, 10);
+  } else if (start && end) {
+    startStr = start;
+    endStr = end;
+  } else {
+    return res.status(400).json({ error: 'week or start+end parameters required' });
+  }
 
   if (req.user.role !== 'superadmin') {
     const m = db.prepare('SELECT 1 FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, familyId);
     if (!m) return res.status(403).json({ error: 'No access' });
   }
-
-  const start = new Date(week);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  const startStr = start.toISOString().slice(0, 10);
-  const endStr = end.toISOString().slice(0, 10);
 
   const events = db.prepare(`
     SELECT e.*, m.name as member_name, m.color as member_color, c.name as category_name, c.icon as category_icon

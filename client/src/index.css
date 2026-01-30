@@ -119,9 +119,7 @@ header h1::before {
   grid-template-columns: 100px repeat(7, 1fr);
   background: var(--bg-secondary);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
   overflow: hidden;
-  box-shadow: var(--shadow-md);
 }
 
 .grid-header {
@@ -2030,47 +2028,22 @@ header h1::before {
 
 /* Timeline Divider */
 .timeline-divider {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 3rem 0 2rem;
-  padding: 0 2rem;
-}
-
-.timeline-divider::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
   height: 1px;
+  margin: 2rem 0;
   background: linear-gradient(
     to right,
     transparent,
-    rgba(139, 92, 246, 0.3) 20%,
-    rgba(139, 92, 246, 0.5) 50%,
-    rgba(139, 92, 246, 0.3) 80%,
+    rgba(139, 92, 246, 0.2) 20%,
+    rgba(139, 92, 246, 0.4) 50%,
+    rgba(139, 92, 246, 0.2) 80%,
     transparent
   );
 }
 
-.timeline-divider-icon {
-  position: relative;
-  z-index: 1;
-  background: var(--bg-primary);
-  padding: 0 1.5rem;
-  font-size: 1.25rem;
-  filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.4));
-  animation: pulse 3s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 0.8;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.1);
-  }
+/* Calendar Container - wraps calendar grid and timeline */
+.calendar-container {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
 }
