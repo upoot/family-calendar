@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { DndContext, DragOverlay, useSensor, useSensors, PointerSensor, type DragStartEvent, type DragEndEvent } from '@dnd-kit/core';
 import { useTranslation } from 'react-i18next';
 import EventModal from './components/EventModal';
@@ -7,6 +7,11 @@ import DroppableCell from './components/DroppableCell';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import { useAuth } from './context/AuthContext';
 import { Link, Navigate } from 'react-router-dom';
+import AppNav from './components/AppNav';
+import NLPBar from './components/NLPBar';
+import TodoWidget from './components/TodoWidget';
+import ShoppingWidget from './components/ShoppingWidget';
+import Timeline from './components/Timeline';
 import type { Member, Category, CalendarEvent, EventFormData } from './types';
 
 function getMonday(d: Date): Date {
@@ -47,6 +52,15 @@ export default function App() {
   const [activeEvent, setActiveEvent] = useState<CalendarEvent | null>(null);
   const [copyWeekModal, setCopyWeekModal] = useState(false);
   const [copyWeekMsg, setCopyWeekMsg] = useState<string | null>(null);
+  const [widgetRefresh, setWidgetRefresh] = useState(0);
+  const refreshWidgets = () => setWidgetRefresh(k => k + 1);
+
+  const jumpToDate = (dateStr: string) => {
+    const date = new Date(dateStr + 'T00:00:00');
+    setWeekStart(getMonday(date));
+    // Scroll to top of calendar
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const weekStr = fmt(weekStart);
   const authHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
@@ -181,7 +195,7 @@ export default function App() {
       <div className="app">
         <header>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <h1>📅 {t('app.title')}</h1>
+            <AppNav />
             {user.families.length > 1 && (
               <select
                 className="family-selector"
@@ -216,6 +230,10 @@ export default function App() {
           </div>
         </header>
 
+        <NLPBar familyId={currentFamilyId} token={token} memberNames={members?.map(m => m.name) || []} onAction={() => { fetchEvents(); refreshWidgets(); }} />
+
+        <div className="dashboard-layout">
+        <div className="dashboard-main">
         <div className="calendar-grid">
           <div className="grid-header corner"></div>
           {weekDates.map((d, i) => (
@@ -226,7 +244,7 @@ export default function App() {
           ))}
 
           {members.map(member => (
-            <>
+            <React.Fragment key={member.id}>
               <div key={`label-${member.id}`} className="member-label">
                 <span className="member-dot" style={{ background: member.color }} />
                 {member.name}
@@ -250,9 +268,22 @@ export default function App() {
                   </DroppableCell>
                 );
               })}
-            </>
+            </React.Fragment>
           ))}
         </div>
+        
+        <div className="timeline-divider">
+          <span className="timeline-divider-icon">✨</span>
+        </div>
+        
+        <Timeline familyId={currentFamilyId} token={token} refreshKey={widgetRefresh} onEventClick={jumpToDate} />
+        </div>{/* end dashboard-main */}
+
+        <aside className="dashboard-sidebar">
+          <TodoWidget familyId={currentFamilyId} token={token} refreshKey={widgetRefresh} />
+          <ShoppingWidget familyId={currentFamilyId} token={token} refreshKey={widgetRefresh} />
+        </aside>
+        </div>{/* end dashboard-layout */}
 
         <DragOverlay>
           {activeEvent && (
