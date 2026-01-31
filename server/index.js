@@ -1182,21 +1182,10 @@ app.put('/api/families/:familyId/integrations/:type', authMiddleware, requireFam
 
 // SSE endpoint for live sync progress
 app.get('/api/families/:familyId/integrations/school/sync-stream', authMiddleware, requireFamily, async (req, res) => {
-  const { username, password } = req.query;
+  const { url, username, password } = req.query;
   
-  if (!username || !password) {
-    return res.status(400).json({ error: 'School credentials required' });
-  }
-  
-  // Get saved settings
-  const settings = db.prepare(
-    'SELECT config, session_data FROM integration_settings WHERE family_id = ? AND integration_type = ?'
-  ).get(req.familyId, 'school');
-  
-  const config = settings?.config ? JSON.parse(settings.config) : {};
-  
-  if (!config.baseUrl) {
-    return res.status(400).json({ error: 'School URL not configured' });
+  if (!url || !username || !password) {
+    return res.status(400).json({ error: 'URL and credentials required' });
   }
   
   // Rate limit check
@@ -1234,15 +1223,14 @@ app.get('/api/families/:familyId/integrations/school/sync-stream', authMiddlewar
   try {
     onProgress('init', 'started', 'Aloitetaan synkronointi...');
     
-    const sessionData = settings?.session_data ? JSON.parse(settings.session_data) : null;
     const { scrapeSchoolExams } = await import('./integrations/school-scraper.js');
     
     // Run scraper with progress
     const { exams, cookies } = await scrapeSchoolExams(
       { username, password },
       {
-        baseUrl: config.baseUrl,
-        sessionCookies: sessionData,
+        baseUrl: url,
+        sessionCookies: null,
         onProgress
       }
     );
@@ -1294,11 +1282,6 @@ app.get('/api/families/:familyId/integrations/school/sync-stream', authMiddlewar
         addedCount++;
       }
     }
-    
-    // Update session cookies
-    db.prepare(
-      'UPDATE integration_settings SET session_data = ?, last_sync = CURRENT_TIMESTAMP WHERE family_id = ? AND integration_type = ?'
-    ).run(JSON.stringify(cookies), req.familyId, 'school');
     
     logSync(req.familyId, 'school', addedCount, 'success');
     

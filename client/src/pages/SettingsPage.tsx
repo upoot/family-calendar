@@ -88,12 +88,6 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
 
   // School integration
-  const [schoolCity, setSchoolCity] = useState('');
-  const [schoolUsername, setSchoolUsername] = useState('');
-  const [schoolPassword, setSchoolPassword] = useState('');
-  const [schoolLastSync, setSchoolLastSync] = useState<string | null>(null);
-  const [schoolSaving, setSchoolSaving] = useState(false);
-  const [schoolMessage, setSchoolMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [showSyncModal, setShowSyncModal] = useState(false);
 
   // Scroll spy
@@ -141,17 +135,6 @@ export default function SettingsPage() {
       setFamilyMembers(data.members || []);
     });
     fetch(`/api/categories?familyId=${currentFamilyId}`, { headers }).then(r => r.json()).then(setCategories);
-    
-    // Load School settings
-    fetch(`/api/families/${currentFamilyId}/integrations/school`, { headers }).then(r => r.json()).then(data => {
-      if (data.config) {
-        const config = JSON.parse(data.config);
-        setSchoolCity(config.baseUrl || '');
-        setSchoolUsername(config.username || '');
-        // Password is never returned from API for security
-      }
-      setSchoolLastSync(data.last_sync);
-    });
   };
 
   const scrollTo = useCallback((id: SectionId) => {
@@ -263,43 +246,12 @@ export default function SettingsPage() {
   const copyInvite = () => { navigator.clipboard.writeText(inviteUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
   // ── School handlers ──
-  const saveSchoolSettings = async () => {
-    if (!schoolCity.trim() || !schoolUsername.trim() || !schoolPassword.trim()) {
-      setSchoolMessage({ text: t('settings.integrations.school.allFieldsRequired'), type: 'error' });
-      setTimeout(() => setSchoolMessage(null), 3000);
-      return;
-    }
-    setSchoolSaving(true);
-    try {
-      const res = await fetch(`/api/families/${currentFamilyId}/integrations/school`, {
-        method: 'PUT', headers,
-        body: JSON.stringify({
-          config: { baseUrl: schoolCity, username: schoolUsername, password: schoolPassword }
-        })
-      });
-      if (!res.ok) throw new Error('Failed to save settings');
-      setSchoolMessage({ text: t('settings.integrations.school.settingsSaved'), type: 'success' });
-      setTimeout(() => setSchoolMessage(null), 3000);
-    } catch (err: any) {
-      setSchoolMessage({ text: err.message, type: 'error' });
-      setTimeout(() => setSchoolMessage(null), 3000);
-    } finally {
-      setSchoolSaving(false);
-    }
-  };
-
   const syncSchool = () => {
-    if (!schoolCity.trim() || !schoolUsername.trim() || !schoolPassword.trim()) {
-      setSchoolMessage({ text: t('settings.integrations.school.allFieldsRequired'), type: 'error' });
-      setTimeout(() => setSchoolMessage(null), 3000);
-      return;
-    }
     setShowSyncModal(true);
   };
 
   const closeSyncModal = () => {
     setShowSyncModal(false);
-    loadData(); // Refresh data after sync
   };
 
   if (!isOwner) return null;
@@ -310,8 +262,6 @@ export default function SettingsPage() {
         <IntegrationSyncModal 
           onClose={closeSyncModal}
           familyId={currentFamilyId}
-          username={schoolUsername}
-          password={schoolPassword}
         />
       )}
       
@@ -504,68 +454,13 @@ export default function SettingsPage() {
                 {t('settings.integrations.school.description')}
               </p>
               
-              {schoolMessage && (
-                <div className={schoolMessage.type === 'error' ? 'auth-error' : 'settings-success'}>
-                  {schoolMessage.text}
-                </div>
-              )}
-              
-              <h4 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>
-                School credentials:
-              </h4>
-              
-              <label className="settings-label">{t('settings.integrations.school.baseUrl')}</label>
-              <input 
-                value={schoolCity} 
-                onChange={e => setSchoolCity(e.target.value)}
-                placeholder="https://example.com"
-                className="settings-input"
-              />
-              
-              <label className="settings-label">{t('settings.integrations.school.username')}</label>
-              <input 
-                value={schoolUsername} 
-                onChange={e => setSchoolUsername(e.target.value)}
-                placeholder={t('settings.integrations.school.usernamePlaceholder')}
-                className="settings-input"
-              />
-              
-              <label className="settings-label">{t('settings.integrations.school.password')}</label>
-              <input 
-                type="password"
-                value={schoolPassword} 
-                onChange={e => setSchoolPassword(e.target.value)}
-                placeholder={t('settings.integrations.school.passwordPlaceholder')}
-                className="settings-input"
-              />
-              
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-                <button 
-                  className="btn-primary" 
-                  onClick={saveSchoolSettings} 
-                  disabled={schoolSaving || !schoolCity.trim() || !schoolUsername.trim() || !schoolPassword.trim()}
-                >
-                  {schoolSaving ? t('settings.saving') : t('settings.save')}
-                </button>
-                <button 
-                  className="btn-primary" 
-                  onClick={syncSchool} 
-                  disabled={!schoolCity.trim() || !schoolUsername.trim() || !schoolPassword.trim()}
-                  style={{ backgroundColor: 'var(--color-success)' }}
-                >
-                  {t('settings.integrations.school.syncNow')}
-                </button>
-              </div>
-              
-              {schoolLastSync && (
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.75rem' }}>
-                  {t('settings.integrations.school.lastSync')}: {new Date(schoolLastSync).toLocaleString('fi-FI')}
-                </p>
-              )}
-              
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '1rem' }}>
-                ℹ️ {t('settings.integrations.school.rateLimit')}
-              </p>
+              <button 
+                className="btn-primary" 
+                onClick={syncSchool}
+                style={{ backgroundColor: 'var(--color-success)' }}
+              >
+                {t('settings.integrations.school.syncNow')}
+              </button>
             </div>
           </div>
 
