@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import IntegrationSyncModal from '../components/IntegrationSyncModal';
+import SchoolIntegrationList from '../components/SchoolIntegrationList';
 
 const PRESET_COLORS = ['#f472b6', '#22d3ee', '#fbbf24', '#a78bfa', '#34d399', '#f87171', '#fb923c', '#60a5fa'];
 
@@ -87,8 +87,6 @@ export default function SettingsPage() {
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // School integration
-  const [showSyncModal, setShowSyncModal] = useState(false);
 
   // Scroll spy
   const [activeSection, setActiveSection] = useState<SectionId>('general');
@@ -245,26 +243,9 @@ export default function SettingsPage() {
   const inviteUrl = family ? `${window.location.origin}/invite/${family.invite_code}` : '';
   const copyInvite = () => { navigator.clipboard.writeText(inviteUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
-  // ── School handlers ──
-  const syncSchool = () => {
-    setShowSyncModal(true);
-  };
-
-  const closeSyncModal = () => {
-    setShowSyncModal(false);
-  };
-
   if (!isOwner) return null;
 
   return (
-    <>
-      {showSyncModal && currentFamilyId && (
-        <IntegrationSyncModal 
-          onClose={closeSyncModal}
-          familyId={currentFamilyId}
-        />
-      )}
-      
       <div className="settings-page">
       <header className="settings-header">
         <h1>⚙️ {t('settings.title')}</h1>
@@ -447,21 +428,7 @@ export default function SettingsPage() {
           <div className="settings-card" ref={el => { sectionRefs.current.integrations = el; }}>
             <h2 className="settings-card-title">{t('settings.sidebar.integrations')}</h2>
             
-            {/* School */}
-            <div className="settings-inner-card">
-              <h3 className="settings-subtitle">🏫 School</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>
-                {t('settings.integrations.school.description')}
-              </p>
-              
-              <button 
-                className="btn-primary" 
-                onClick={syncSchool}
-                style={{ backgroundColor: 'var(--color-success)' }}
-              >
-                {t('settings.integrations.school.syncNow')}
-              </button>
-            </div>
+            {currentFamilyId && <SchoolIntegrationList familyId={currentFamilyId} token={token} />}
           </div>
 
           {/* Invite */}
@@ -485,6 +452,5 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
-    </>
   );
 }
