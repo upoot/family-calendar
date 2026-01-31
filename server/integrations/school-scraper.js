@@ -238,13 +238,24 @@ async function parseExams(page, onProgress) {
         // Parse title - clean up whitespace first
         let title = titleText.replace(/\s+/g, ' ').trim();
         
-        // If title has colons, parse subject info
+        // Parse title - extract exam name and subject abbreviation from course code
         // Format: "Sanakoe teksti 7 : ENA.8A ENA02 : Englanti, A1"
+        // Result: "Sanakoe teksti 7 (ENA)"
         if (title.includes(':')) {
           const parts = title.split(':').map(p => p.trim());
           const examName = parts[0];
-          const subject = parts.length > 2 ? parts[parts.length - 1] : '';
-          title = subject ? `${examName} (${subject})` : examName;
+          
+          // Extract subject abbreviation from course code (2nd part)
+          // e.g. "ENA.8A ENA02" → "ENA", "KE.8A KE02" → "KE", "MAA02" → "MAA"
+          let subjectAbbr = '';
+          if (parts.length >= 2) {
+            const codeMatch = parts[1].match(/^([A-ZÄÖÅ]+)/);
+            if (codeMatch) {
+              subjectAbbr = codeMatch[1];
+            }
+          }
+          
+          title = subjectAbbr ? `${examName} (${subjectAbbr})` : examName;
         }
         
         if (title && title.length > 2 && dateStr) {
