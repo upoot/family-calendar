@@ -88,7 +88,7 @@ export default function SchoolIntegrationModal({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="integration-sync-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>🏫 {existingIntegration ? 'Muokkaa integraatiota' : 'Uusi integraatio'}</h2>

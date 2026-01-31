@@ -120,12 +120,27 @@ export default function IntegrationSyncModal({
     }
   };
 
+  const handleOverlayClick = () => {
+    // Don't close if syncing
+    if (isSyncing && !isComplete && !hasError) {
+      return;
+    }
+    onClose();
+  };
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleOverlayClick}>
       <div className="integration-sync-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>🏫 School Sync</h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <button 
+            className="modal-close" 
+            onClick={handleOverlayClick}
+            disabled={isSyncing && !isComplete && !hasError}
+            style={{ cursor: (isSyncing && !isComplete && !hasError) ? 'not-allowed' : 'pointer' }}
+          >
+            ✕
+          </button>
         </div>
 
         {!isSyncing ? (
