@@ -12,7 +12,6 @@ interface MemberData {
   color: string;
   display_order: number;
   user_id?: number | null;
-  exam_url?: string | null;
 }
 
 interface FamilyUserData {
@@ -67,7 +66,6 @@ export default function SettingsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('');
-  const [editExamUrl, setEditExamUrl] = useState('');
 
   // Category form
   const [newCatName, setNewCatName] = useState('');
@@ -90,12 +88,6 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
 
   // School integration
-  const [schoolCity, setSchoolCity] = useState('');
-  const [schoolUsername, setSchoolUsername] = useState('');
-  const [schoolPassword, setSchoolPassword] = useState('');
-  const [schoolLastSync, setSchoolLastSync] = useState<string | null>(null);
-  const [schoolSaving, setSchoolSaving] = useState(false);
-  const [schoolMessage, setSchoolMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [showSyncModal, setShowSyncModal] = useState(false);
 
   // Scroll spy
@@ -143,17 +135,6 @@ export default function SettingsPage() {
       setFamilyMembers(data.members || []);
     });
     fetch(`/api/categories?familyId=${currentFamilyId}`, { headers }).then(r => r.json()).then(setCategories);
-    
-    // Load School settings
-    fetch(`/api/families/${currentFamilyId}/integrations/school`, { headers }).then(r => r.json()).then(data => {
-      if (data.config) {
-        const config = JSON.parse(data.config);
-        setSchoolCity(config.baseUrl || '');
-        setSchoolUsername(config.username || '');
-        // Password is never returned from API for security
-      }
-      setSchoolLastSync(data.last_sync);
-    });
   };
 
   const scrollTo = useCallback((id: SectionId) => {
@@ -179,11 +160,11 @@ export default function SettingsPage() {
     loadData();
   };
 
-  const startEdit = (m: MemberData) => { setEditingId(m.id); setEditName(m.name); setEditColor(m.color); setEditExamUrl(m.exam_url || ''); };
+  const startEdit = (m: MemberData) => { setEditingId(m.id); setEditName(m.name); setEditColor(m.color); };
 
   const saveEdit = async () => {
     if (!editingId || !editName.trim()) return;
-    await fetch(`/api/members/${editingId}`, { method: 'PUT', headers, body: JSON.stringify({ name: editName, color: editColor, exam_url: editExamUrl || null }) });
+    await fetch(`/api/members/${editingId}`, { method: 'PUT', headers, body: JSON.stringify({ name: editName, color: editColor }) });
     setEditingId(null);
     loadData();
   };
@@ -265,43 +246,12 @@ export default function SettingsPage() {
   const copyInvite = () => { navigator.clipboard.writeText(inviteUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
   // ── School handlers ──
-  const saveSchoolSettings = async () => {
-    if (!schoolCity.trim() || !schoolUsername.trim() || !schoolPassword.trim()) {
-      setSchoolMessage({ text: t('settings.integrations.school.allFieldsRequired'), type: 'error' });
-      setTimeout(() => setSchoolMessage(null), 3000);
-      return;
-    }
-    setSchoolSaving(true);
-    try {
-      const res = await fetch(`/api/families/${currentFamilyId}/integrations/school`, {
-        method: 'PUT', headers,
-        body: JSON.stringify({
-          config: { baseUrl: schoolCity, username: schoolUsername, password: schoolPassword }
-        })
-      });
-      if (!res.ok) throw new Error('Failed to save settings');
-      setSchoolMessage({ text: t('settings.integrations.school.settingsSaved'), type: 'success' });
-      setTimeout(() => setSchoolMessage(null), 3000);
-    } catch (err: any) {
-      setSchoolMessage({ text: err.message, type: 'error' });
-      setTimeout(() => setSchoolMessage(null), 3000);
-    } finally {
-      setSchoolSaving(false);
-    }
-  };
-
   const syncSchool = () => {
-    if (!schoolCity.trim() || !schoolUsername.trim() || !schoolPassword.trim()) {
-      setSchoolMessage({ text: t('settings.integrations.school.allFieldsRequired'), type: 'error' });
-      setTimeout(() => setSchoolMessage(null), 3000);
-      return;
-    }
     setShowSyncModal(true);
   };
 
   const closeSyncModal = () => {
     setShowSyncModal(false);
-    loadData(); // Refresh data after sync
   };
 
   if (!isOwner) return null;
@@ -312,8 +262,6 @@ export default function SettingsPage() {
         <IntegrationSyncModal 
           onClose={closeSyncModal}
           familyId={currentFamilyId}
-          username={schoolUsername}
-          password={schoolPassword}
         />
       )}
       
@@ -364,23 +312,12 @@ export default function SettingsPage() {
               {members.map((m, i) => (
                 <div key={m.id} className="settings-member-row">
                   {editingId === m.id ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%', padding: '0.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        <input type="color" value={editColor} onChange={e => setEditColor(e.target.value)} className="settings-color-input" />
-                        <input value={editName} onChange={e => setEditName(e.target.value)} className="settings-input" style={{ flex: 1 }}
-                          placeholder="Name" onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }} autoFocus />
-                      </div>
-                      <input 
-                        value={editExamUrl} 
-                        onChange={e => setEditExamUrl(e.target.value)} 
-                        className="settings-input" 
-                        placeholder="School exam URL (optional)" 
-                        style={{ fontSize: '0.8rem' }}
-                      />
-                      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                        <button className="btn-sm" onClick={saveEdit}>✓ Save</button>
-                        <button className="btn-sm" onClick={() => setEditingId(null)}>✕ Cancel</button>
-                      </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', width: '100%', padding: '0.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', alignItems: 'center' }}>
+                      <input type="color" value={editColor} onChange={e => setEditColor(e.target.value)} className="settings-color-input" />
+                      <input value={editName} onChange={e => setEditName(e.target.value)} className="settings-input" style={{ flex: 1 }}
+                        placeholder="Name" onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }} autoFocus />
+                      <button className="btn-sm" onClick={saveEdit}>✓ Save</button>
+                      <button className="btn-sm" onClick={() => setEditingId(null)}>✕ Cancel</button>
                     </div>
                   ) : (
                     <>
@@ -517,92 +454,13 @@ export default function SettingsPage() {
                 {t('settings.integrations.school.description')}
               </p>
               
-              {schoolMessage && (
-                <div className={schoolMessage.type === 'error' ? 'auth-error' : 'settings-success'}>
-                  {schoolMessage.text}
-                </div>
-              )}
-              
-              {/* Members with school integration */}
-              <div style={{ marginBottom: '1.5rem', padding: '0.75rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                <h4 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
-                  Members with school integration:
-                </h4>
-                {members.filter(m => m.exam_url).length > 0 ? (
-                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {members.filter(m => m.exam_url).map(m => (
-                      <li key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
-                        <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: m.color }} />
-                        <span style={{ fontWeight: 500 }}>{m.name}</span>
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {m.exam_url}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>
-                    No members with exam URLs configured. Edit a member to add their school exam URL.
-                  </p>
-                )}
-              </div>
-              
-              <h4 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>
-                School credentials (shared for all members):
-              </h4>
-              
-              <label className="settings-label">{t('settings.integrations.school.baseUrl')}</label>
-              <input 
-                value={schoolCity} 
-                onChange={e => setSchoolCity(e.target.value)}
-                placeholder="https://school.example.com"
-                className="settings-input"
-              />
-              
-              <label className="settings-label">{t('settings.integrations.school.username')}</label>
-              <input 
-                value={schoolUsername} 
-                onChange={e => setSchoolUsername(e.target.value)}
-                placeholder={t('settings.integrations.school.usernamePlaceholder')}
-                className="settings-input"
-              />
-              
-              <label className="settings-label">{t('settings.integrations.school.password')}</label>
-              <input 
-                type="password"
-                value={schoolPassword} 
-                onChange={e => setSchoolPassword(e.target.value)}
-                placeholder={t('settings.integrations.school.passwordPlaceholder')}
-                className="settings-input"
-              />
-              
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-                <button 
-                  className="btn-primary" 
-                  onClick={saveSchoolSettings} 
-                  disabled={schoolSaving || !schoolCity.trim() || !schoolUsername.trim() || !schoolPassword.trim()}
-                >
-                  {schoolSaving ? t('settings.saving') : t('settings.save')}
-                </button>
-                <button 
-                  className="btn-primary" 
-                  onClick={syncSchool} 
-                  disabled={!schoolCity.trim() || !schoolUsername.trim() || !schoolPassword.trim()}
-                  style={{ backgroundColor: 'var(--color-success)' }}
-                >
-                  {t('settings.integrations.school.syncNow')}
-                </button>
-              </div>
-              
-              {schoolLastSync && (
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.75rem' }}>
-                  {t('settings.integrations.school.lastSync')}: {new Date(schoolLastSync).toLocaleString('fi-FI')}
-                </p>
-              )}
-              
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '1rem' }}>
-                ℹ️ {t('settings.integrations.school.rateLimit')}
-              </p>
+              <button 
+                className="btn-primary" 
+                onClick={syncSchool}
+                style={{ backgroundColor: 'var(--color-success)' }}
+              >
+                {t('settings.integrations.school.syncNow')}
+              </button>
             </div>
           </div>
 
