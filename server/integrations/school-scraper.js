@@ -223,40 +223,79 @@ async function parseExams(page, onProgress) {
   onProgress('find_exams', 'started', 'Jäsennetään kokeiden tietoja...');
 
   const exams = await page.evaluate(() => {
-    const events = [];
+    // Subject abbreviation to full name mapping
+    const SUBJECT_MAP = {
+      'ENA': 'Englanti',
+      'ENB': 'Englanti',
+      'RUB': 'Ruotsi',
+      'RUA': 'Ruotsi',
+      'MA': 'Matematiikka',
+      'MAA': 'Matematiikka',
+      'MAB': 'Matematiikka',
+      'KE': 'Kemia',
+      'GE': 'Maantieto',
+      'FY': 'Fysiikka',
+      'BI': 'Biologia',
+      'HI': 'Historia',
+      'YH': 'Yhteiskuntaoppi',
+      'AI': 'Äidinkieli',
+      'UE': 'Uskonto',
+      'ET': 'Elämänkatsomustieto',
+      'TE': 'Terveystieto',
+      'KU': 'Kuvataide',
+      'MU': 'Musiikki',
+      'LI': 'Liikunta',
+      'KS': 'Käsityö',
+      'KO': 'Kotitalous',
+      'OP': 'Opinto-ohjaus',
+      'SAA': 'Saame',
+      'RAA': 'Ranska',
+      'SAK': 'Saksa',
+      'VEA': 'Venäjä',
+      'ESA': 'Espanja',
+      'ITA': 'Italia',
+      'LAB': 'Latina'
+    };
     
+    const events = [];
     const tables = document.querySelectorAll('table');
     
     tables.forEach(table => {
-      const rows = table.querySelectorAll('tr');
+      const rows = Array.from(table.querySelectorAll('tr'));
       if (rows.length === 0) return;
       
-      rows.forEach(row => {
-        const cells = Array.from(row.querySelectorAll('td'));
-        if (cells.length < 2) return;
+      // Each exam consists of multiple rows:
+      // Row 1: Date | Title (has date pattern)
+      // Row 2: "Opettaja" | Teacher name (optional)
+      // Row 3: "Kokeen lisätiedot" | Description (optional)
+      
+      let i = 0;
+      while (i < rows.length) {
+        const cells = Array.from(rows[i].querySelectorAll('td'));
+        if (cells.length < 2) { i++; continue; }
         
         const dateText = cells[0].textContent.trim();
         const titleText = cells[1].textContent.trim();
         
-        // Try to find date in Finnish format: d.M.yyyy or dd.MM.yyyy
+        // Check if this row has a date (= start of an exam entry)
         const dateMatch = dateText.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-        if (!dateMatch) return;
+        if (!dateMatch) { i++; continue; }
         
         const [, day, month, year] = dateMatch;
         const dateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
         
-        // Parse title - clean up whitespace first
+        // Parse title
         let title = titleText.replace(/\s+/g, ' ').trim();
+        let description = '';
         
-        // Parse title - extract exam name and subject abbreviation from course code
-        // Format: "Sanakoe teksti 7 : ENA.8A ENA02 : Englanti, A1"
-        // Result: "Sanakoe teksti 7 (ENA)"
+        // Extract exam name and subject from title
+        // Format: "kpl 9 : ENA1.A ENA112 : 6k"
+        // or: "Ruotsin koe KPL 4. : RUB1 Ruotsin kieli (B1-oppimäärä).6A RUB102 : 6k"
         if (title.includes(':')) {
           const parts = title.split(':').map(p => p.trim());
           const examName = parts[0];
           
           // Extract subject abbreviation from course code (2nd part)
-          // e.g. "ENA.8A ENA02" → "ENA", "KE.8A KE02" → "KE", "MAA02" → "MAA"
           let subjectAbbr = '';
           if (parts.length >= 2) {
             const codeMatch = parts[1].match(/^([A-ZÄÖÅ]+)/);
@@ -265,7 +304,29 @@ async function parseExams(page, onProgress) {
             }
           }
           
-          title = subjectAbbr ? `${examName} (${subjectAbbr})` : examName;
+          // Map abbreviation to full subject name
+          const subjectName = SUBJECT_MAP[subjectAbbr] || subjectAbbr;
+          title = subjectName ? `${examName} (${subjectName})` : examName;
+        }
+        
+        // Look ahead for teacher and description rows
+        let j = i + 1;
+        while (j < rows.length) {
+          const nextCells = Array.from(rows[j].querySelectorAll('td'));
+          if (nextCells.length < 2) break;
+          
+          const label = nextCells[0].textContent.trim().toLowerCase();
+          const value = nextCells[1].textContent.trim();
+          
+          // Check if this is a new exam (has a date)
+          if (label.match(/\d{1,2}\.\d{1,2}\.\d{4}/)) break;
+          
+          if (label.includes('lisätiedot') || label.includes('lisätieto')) {
+            description = value;
+          }
+          // Skip "Opettaja" row - we don't need teacher info
+          
+          j++;
         }
         
         if (title && title.length > 2 && dateStr) {
@@ -274,10 +335,14 @@ async function parseExams(page, onProgress) {
             date: dateStr,
             time: '08:00',
             type: 'exam',
-            source: 'school'
+            source: 'school',
+            description: description || ''
           });
         }
-      });
+        
+        // Skip to next exam
+        i = j;
+      }
     });
 
     return events;

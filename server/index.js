@@ -1310,7 +1310,7 @@ app.post('/api/families/:familyId/integrations/school/sync-poll', authMiddleware
         // Check across ALL members in family (same exam can't exist twice)
         const existing = db.prepare('SELECT id FROM events WHERE family_id = ? AND title = ? AND date = ?').get(req.familyId, exam.title, exam.date);
         if (!existing) {
-          db.prepare('INSERT INTO events (family_id, member_id, category_id, title, date, start_time, end_time, is_recurring) VALUES (?, ?, ?, ?, ?, ?, ?, 0)').run(req.familyId, member.id, examCategory.id, exam.title, exam.date, exam.time, exam.time);
+          db.prepare('INSERT INTO events (family_id, member_id, category_id, title, date, start_time, end_time, description, is_recurring) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)').run(req.familyId, member.id, examCategory.id, exam.title, exam.date, exam.time, exam.time, exam.description || '');
           addedCount++;
         }
       }
