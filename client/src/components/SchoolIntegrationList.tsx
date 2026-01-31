@@ -16,6 +16,7 @@ interface Integration {
   member_color: string;
   config: {
     baseUrl: string;
+    use_simulation?: boolean;
   };
   last_sync: string | null;
   last_sync_status: {
@@ -38,7 +39,7 @@ export default function SchoolIntegrationList({ familyId, token }: SchoolIntegra
   const [showModal, setShowModal] = useState(false);
   const [editingIntegration, setEditingIntegration] = useState<Integration | null>(null);
   const [syncingMemberId, setSyncingMemberId] = useState<number | null>(null);
-  const [syncCredentials, setSyncCredentials] = useState<{ url: string; username: string; password: string } | null>(null);
+  const [syncCredentials, setSyncCredentials] = useState<{ url: string; username: string; password: string; useSimulation?: boolean } | null>(null);
 
   const headers = {
     'Content-Type': 'application/json',
@@ -87,7 +88,8 @@ export default function SchoolIntegrationList({ familyId, token }: SchoolIntegra
     setSyncCredentials({
       url: integration.config.baseUrl,
       username: '',
-      password: ''
+      password: '',
+      useSimulation: integration.config.use_simulation || false
     });
   };
 

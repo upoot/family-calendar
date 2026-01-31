@@ -14,7 +14,12 @@ const app = express();
 
 // ── CORS — rajoita sallitut originit ────────────────────────────────────────
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
-app.use(cors({ origin: CORS_ORIGIN, credentials: true }));
+app.use(cors({ 
+  origin: CORS_ORIGIN, 
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // ── JWT-salaisuus — vaaditaan ympäristömuuttuja ─────────────────────────────
@@ -1225,15 +1230,14 @@ app.delete('/api/families/:familyId/integrations/:type/:memberId', authMiddlewar
 
 // Sync School exams
 
-// SSE endpoint for live sync progress
-app.get('/api/families/:familyId/integrations/school/sync-stream', authMiddleware, requireFamily, async (req, res) => {
-  const { memberId, url, username, password } = req.query;
+app.post('/api/families/:familyId/integrations/school/sync-poll', authMiddleware, requireFamily, async (req, res) => {
+  const { memberId, url, username, password, simulate } = req.body;
   
   if (!memberId || !url || !username || !password) {
-    return res.status(400).json({ error: 'memberId, URL and credentials required' });
+    return res.status(400).json({ error: 'memberId, url, username, password required' });
   }
   
-  // Verify member belongs to family
+  // Verify member
   const member = db.prepare('SELECT id, name FROM members WHERE id = ? AND family_id = ?').get(parseInt(memberId), req.familyId);
   if (!member) {
     return res.status(404).json({ error: 'Member not found' });
@@ -1243,210 +1247,105 @@ app.get('/api/families/:familyId/integrations/school/sync-stream', authMiddlewar
   if (!checkSyncRateLimit(req.familyId, 'school')) {
     return res.status(429).json({ error: 'Rate limit: max 1 sync per 15 minutes' });
   }
-  
-  // Setup SSE
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no' // Disable nginx buffering
-  });
-  
-  const sendEvent = (data) => {
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
-  };
-  
-  const syncId = crypto.randomUUID();
-  
-  // Progress callback
+  // Collect logs from scraper (outside try so catch can access it)
+  const collectedLogs = [];
   const onProgress = (step, status, message) => {
-    const timestamp = new Date().toISOString();
-    
-    // Log to database
-    db.prepare(
-      'INSERT INTO integration_logs (family_id, integration_type, sync_id, step, status, message, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(req.familyId, 'school', syncId, step, status, message, timestamp);
-    
-    // Send to client
-    sendEvent({ step, status, message, timestamp });
+    const logEntry = {
+      step,
+      status,
+      message,
+      timestamp: new Date().toISOString()
+    };
+    collectedLogs.push(logEntry);
+    console.log(`[Scraper Progress] [${step}] ${status}: ${message}`);
   };
   
   try {
-    onProgress('init', 'started', 'Aloitetaan synkronointi...');
+    // Use mock scraper if simulation mode is enabled
+    let scrapeSchoolExams;
+    let actualUrl = url;
+    let actualUsername = username;
+    let actualPassword = password;
     
-    const { scrapeSchoolExams } = await import('./integrations/school-scraper.js');
+    if (simulate) {
+      console.log('[School Sync] 🎭 SIMULATION MODE enabled - using mock scraper');
+      const mock = await import('./integrations/school-scraper-mock.js');
+      scrapeSchoolExams = mock.scrapeSchoolExamsMock;
+      
+      // Override with localhost mock service
+      actualUrl = 'http://localhost:3002/exams/calendar';
+      actualUsername = 'test.user';
+      actualPassword = 'password123';
+      
+      console.log('[School Sync] Using mock URL:', actualUrl);
+    } else {
+      console.log('[School Sync] Running real scraper');
+      const real = await import('./integrations/school-scraper.js');
+      scrapeSchoolExams = real.scrapeSchoolExams;
+    }
     
-    // Run scraper with progress
+    const targetUrl = actualUrl;
+    
+    console.log('[School Sync] Target URL:', targetUrl);
+    
+    // Run scraper (blocking - returns when done)
     const { exams, cookies } = await scrapeSchoolExams(
-      { username, password },
-      {
-        baseUrl: url,
-        sessionCookies: null,
-        onProgress
-      }
+      { username: actualUsername, password: actualPassword },
+      { targetUrl, sessionCookies: null, onProgress }
     );
     
-    onProgress('save', 'started', 'Tallennetaan kokeita kalenteriin...');
-    
-    // Get or ensure "Koe" category
+    // Get or create exam category
     let examCategory = db.prepare('SELECT id FROM categories WHERE name = ? AND family_id IS NULL').get('Koe');
     if (!examCategory) {
-      const result = db.prepare(
-        'INSERT INTO categories (name, icon, family_id, display_order) VALUES (?, ?, NULL, 100)'
-      ).run('Koe', '📝');
+      const result = db.prepare('INSERT INTO categories (name, icon, family_id, display_order) VALUES (?, ?, NULL, 100)').run('Koe', '📝');
       examCategory = { id: result.lastInsertRowid };
     }
     
+    // Save exams
     let addedCount = 0;
-    
-    // Save all exams for this specific member
     for (const exam of exams) {
-      const existing = db.prepare(
-        'SELECT id FROM events WHERE family_id = ? AND member_id = ? AND title = ? AND date = ?'
-      ).get(req.familyId, member.id, exam.title, exam.date);
-      
+      const existing = db.prepare('SELECT id FROM events WHERE family_id = ? AND member_id = ? AND title = ? AND date = ?').get(req.familyId, member.id, exam.title, exam.date);
       if (!existing) {
-        db.prepare(
-          'INSERT INTO events (family_id, member_id, category_id, title, date, start_time, end_time, is_recurring) VALUES (?, ?, ?, ?, ?, ?, ?, 0)'
-        ).run(req.familyId, member.id, examCategory.id, exam.title, exam.date, exam.time, exam.time);
+        db.prepare('INSERT INTO events (family_id, member_id, category_id, title, date, start_time, end_time, is_recurring) VALUES (?, ?, ?, ?, ?, ?, ?, 0)').run(req.familyId, member.id, examCategory.id, exam.title, exam.date, exam.time, exam.time);
         addedCount++;
       }
     }
     
-    // Update last_sync for this integration
-    db.prepare(
-      'UPDATE integration_settings SET last_sync = CURRENT_TIMESTAMP WHERE family_id = ? AND integration_type = ? AND member_id = ?'
-    ).run(req.familyId, 'school', member.id);
-    
     logSync(req.familyId, 'school', addedCount, 'success');
     
-    onProgress('save', 'success', `Lisättiin ${addedCount} uutta koetta (${member.name})`);
-    onProgress('complete', 'success', 'Synkronointi valmis!');
-    
-  } catch (error) {
-    console.error('[School Sync SSE] Error:', error);
-    
-    const errorMessage = error.message || 'Unknown error';
-    
-    db.prepare(
-      'INSERT INTO integration_logs (family_id, integration_type, sync_id, step, status, message, error_detail) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(req.familyId, 'school', syncId, 'error', 'error', errorMessage, error.stack);
-    
-    sendEvent({ step: 'error', status: 'error', message: errorMessage, timestamp: new Date().toISOString() });
-    
-    logSync(req.familyId, 'school', 0, 'error', errorMessage);
-  } finally {
-    res.end();
-  }
-});
-
-app.post('/api/families/:familyId/integrations/school/sync', authMiddleware, requireFamily, async (req, res) => {
-  const { credentials } = req.body; // { username, password }
-  
-  if (!credentials?.username || !credentials?.password) {
-    return res.status(400).json({ error: 'School credentials required' });
-  }
-  
-  // Get saved settings to check baseUrl
-  const settings = db.prepare(
-    'SELECT config FROM integration_settings WHERE family_id = ? AND integration_type = ?'
-  ).get(req.familyId, 'school');
-  
-  const config = settings?.config ? JSON.parse(settings.config) : {};
-  
-  if (!config.baseUrl) {
-    return res.status(400).json({ error: 'School URL not configured - save settings first' });
-  }
-  
-  // Rate limit check
-  if (!checkSyncRateLimit(req.familyId, 'school')) {
-    logSync(req.familyId, 'school', 0, 'rate_limited', 'Too many sync attempts');
-    return res.status(429).json({ error: 'Rate limit: max 1 sync per 15 minutes' });
-  }
-  
-  try {
-    // Get session cookies from existing settings
-    const sessionData = settings?.session_data ? JSON.parse(settings.session_data) : null;
-    
-    // Import scraper dynamically
-    const { scrapeSchoolExams } = await import('./integrations/school-scraper.js');
-    
-    // Run scraper
-    const { exams, cookies } = await scrapeSchoolExams(credentials, {
-      baseUrl: config.baseUrl, // Already validated above
-      sessionCookies: sessionData
+    res.json({ 
+      success: true, 
+      exams, 
+      added: addedCount,
+      total: exams.length,
+      logs: collectedLogs
     });
-    
-    // Get or ensure "Koe" category exists
-    let examCategory = db.prepare('SELECT id FROM categories WHERE name = ? AND family_id IS NULL').get('Koe');
-    if (!examCategory) {
-      // Create global Koe category if missing
-      const result = db.prepare(
-        'INSERT INTO categories (name, icon, family_id, display_order) VALUES (?, ?, NULL, 100)'
-      ).run('Koe', '📝');
-      examCategory = { id: result.lastInsertRowid };
-    }
-    
-    // Get family members for mapping
-    const familyMembers = db.prepare('SELECT id, name FROM members WHERE family_id = ?').all(req.familyId);
-    
-    if (familyMembers.length === 0) {
-      throw new Error('No members found in family - create a member first');
-    }
-    
-    // Helper: Match student name to family member (fuzzy match by first name)
-    const matchMember = (studentName) => {
-      if (!studentName) return familyMembers[0].id; // Default to first member
-      
-      const normalized = studentName.toLowerCase().trim();
-      
-      // Try exact first name match
-      const exactMatch = familyMembers.find(m => 
-        m.name.toLowerCase().split(/\s+/)[0] === normalized
-      );
-      if (exactMatch) return exactMatch.id;
-      
-      // Try starts-with match (e.g., "Ain" matches "Aino")
-      const startsWithMatch = familyMembers.find(m => 
-        m.name.toLowerCase().split(/\s+/)[0].startsWith(normalized)
-      );
-      if (startsWithMatch) return startsWithMatch.id;
-      
-      // Fallback to first member
-      return familyMembers[0].id;
-    };
-    
-    // Save exams to calendar (only if they don't already exist)
-    let addedCount = 0;
-    
-    for (const exam of exams) {
-      // Check if exam already exists
-      const existing = db.prepare(
-        'SELECT id FROM events WHERE family_id = ? AND title = ? AND date = ?'
-      ).get(req.familyId, exam.title, exam.date);
-      
-      if (!existing) {
-        const memberId = matchMember(exam.studentName);
-        db.prepare(
-          'INSERT INTO events (family_id, member_id, category_id, title, date, start_time, end_time, is_recurring) VALUES (?, ?, ?, ?, ?, ?, ?, 0)'
-        ).run(req.familyId, memberId, examCategory.id, exam.title, exam.date, exam.time, exam.time);
-        addedCount++;
-      }
-    }
-    
-    // Update settings with new session cookies
-    db.prepare(
-      'UPDATE integration_settings SET session_data = ?, last_sync = CURRENT_TIMESTAMP WHERE family_id = ? AND integration_type = ?'
-    ).run(JSON.stringify(cookies), req.familyId, 'school');
-    
-    // Log sync
-    logSync(req.familyId, 'school', addedCount, 'success');
-    
-    res.json({ success: true, added: addedCount, total: exams.length });
   } catch (error) {
     console.error('[School sync error]', error);
+    
+    // Add error to collected logs
+    collectedLogs.push({
+      step: 'error',
+      status: 'error',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Add stack trace as separate log entry for debugging
+    if (error.stack) {
+      collectedLogs.push({
+        step: 'debug',
+        status: 'error',
+        message: `Stack trace:\n${error.stack}`,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
     logSync(req.familyId, 'school', 0, 'error', error.message);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      error: error.message,
+      logs: collectedLogs
+    });
   }
 });
 

@@ -13,6 +13,7 @@ interface Integration {
   config: {
     baseUrl: string;
     username: string;
+    use_simulation?: boolean;
   };
 }
 
@@ -37,6 +38,9 @@ export default function SchoolIntegrationModal({
     existingIntegration?.member_id || (members[0]?.id || 0)
   );
   const [url, setUrl] = useState(existingIntegration?.config.baseUrl || '');
+  const [useSimulation, setUseSimulation] = useState(
+    existingIntegration?.config.use_simulation || false
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -65,7 +69,8 @@ export default function SchoolIntegrationModal({
         body: JSON.stringify({
           member_id: memberId,
           config: {
-            baseUrl: url
+            baseUrl: url,
+            use_simulation: useSimulation
           }
         })
       });
@@ -145,6 +150,27 @@ export default function SchoolIntegrationModal({
               fontSize: '0.9rem'
             }}
           />
+
+          <label style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '0.5rem', 
+            marginBottom: '1rem',
+            cursor: 'pointer',
+            fontSize: '0.875rem',
+            padding: '0.75rem',
+            background: 'var(--bg-tertiary)',
+            border: '1px solid var(--border-light)',
+            borderRadius: 'var(--radius-md)'
+          }}>
+            <input
+              type="checkbox"
+              checked={useSimulation}
+              onChange={(e) => setUseSimulation(e.target.checked)}
+              style={{ cursor: 'pointer' }}
+            />
+            <span>🎭 Käytä simulaatiota (localhost mock-palvelu)</span>
+          </label>
 
           <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
             💡 Käyttäjätunnus ja salasana kysytään synkronoinnin yhteydessä
