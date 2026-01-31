@@ -1,0 +1,254 @@
+/* Report pages - optimized for 1280x900 screenshots */
+
+.report-page {
+  width: 1280px;
+  min-height: 900px;
+  max-height: 900px;
+  overflow: hidden;
+  padding: 2rem 2.5rem;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+.report-loading,
+.report-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  font-size: 1.2rem;
+  color: var(--text-secondary);
+}
+
+.report-error { color: var(--danger); }
+
+/* Header */
+.report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.report-header h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #f5f5f7 0%, #a1a1aa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+}
+
+.report-header-left {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.report-family {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.report-date-range {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.report-weather {
+  font-size: 1.5rem;
+  letter-spacing: 0.02em;
+}
+
+/* Sections (daily) */
+.report-section {
+  margin-bottom: 1.5rem;
+}
+
+.report-section-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.report-events {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.report-event-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
+.report-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.report-event-time {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 90px;
+  white-space: nowrap;
+}
+
+.report-event-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.report-event-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.report-event-member {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.report-event-location {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.report-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 2rem;
+  text-align: center;
+}
+
+/* Footer */
+.report-footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.report-members {
+  display: flex;
+  gap: 1.25rem;
+  justify-content: center;
+}
+
+.report-member-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* Weekly grid */
+.report-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.5rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.report-week-day {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.report-week-day.report-today {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.2);
+}
+
+.report-day-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.6rem;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+}
+
+.report-day-name {
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.report-today .report-day-name {
+  color: var(--accent);
+}
+
+.report-day-num {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.report-day-events {
+  padding: 0.35rem;
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.report-day-empty {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.report-week-event {
+  padding: 0.3rem 0.5rem;
+  border-left: 3px solid;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.report-week-event-time {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.report-week-event-title {
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
