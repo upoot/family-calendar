@@ -584,9 +584,10 @@ app.put('/api/members/:id', authMiddleware, (req, res) => {
     const m = db.prepare('SELECT role FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, member.family_id);
     if (!m || m.role !== 'owner') return res.status(403).json({ error: 'Only owner can edit members' });
   }
-  const { name, color } = req.body;
+  const { name, color, exam_url } = req.body;
   if (name) db.prepare('UPDATE members SET name = ? WHERE id = ?').run(name, req.params.id);
   if (color) db.prepare('UPDATE members SET color = ? WHERE id = ?').run(color, req.params.id);
+  if (exam_url !== undefined) db.prepare('UPDATE members SET exam_url = ? WHERE id = ?').run(exam_url, req.params.id);
   res.json(db.prepare('SELECT * FROM members WHERE id = ?').get(req.params.id));
 });
 
@@ -1179,6 +1180,149 @@ app.put('/api/families/:familyId/integrations/:type', authMiddleware, requireFam
 });
 
 // Sync School exams
+
+// SSE endpoint for live sync progress
+app.get('/api/families/:familyId/integrations/school/sync-stream', authMiddleware, requireFamily, async (req, res) => {
+  const { username, password } = req.query;
+  
+  if (!username || !password) {
+    return res.status(400).json({ error: 'School credentials required' });
+  }
+  
+  // Get saved settings
+  const settings = db.prepare(
+    'SELECT config, session_data FROM integration_settings WHERE family_id = ? AND integration_type = ?'
+  ).get(req.familyId, 'school');
+  
+  const config = settings?.config ? JSON.parse(settings.config) : {};
+  
+  if (!config.baseUrl) {
+    return res.status(400).json({ error: 'School URL not configured' });
+  }
+  
+  // Rate limit check
+  if (!checkSyncRateLimit(req.familyId, 'school')) {
+    return res.status(429).json({ error: 'Rate limit: max 1 sync per 15 minutes' });
+  }
+  
+  // Setup SSE
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no' // Disable nginx buffering
+  });
+  
+  const sendEvent = (data) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+  
+  const syncId = crypto.randomUUID();
+  
+  // Progress callback
+  const onProgress = (step, status, message) => {
+    const timestamp = new Date().toISOString();
+    
+    // Log to database
+    db.prepare(
+      'INSERT INTO integration_logs (family_id, integration_type, sync_id, step, status, message, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(req.familyId, 'school', syncId, step, status, message, timestamp);
+    
+    // Send to client
+    sendEvent({ step, status, message, timestamp });
+  };
+  
+  try {
+    onProgress('init', 'started', 'Aloitetaan synkronointi...');
+    
+    const sessionData = settings?.session_data ? JSON.parse(settings.session_data) : null;
+    const { scrapeSchoolExams } = await import('./integrations/school-scraper.js');
+    
+    // Run scraper with progress
+    const { exams, cookies } = await scrapeSchoolExams(
+      { username, password },
+      {
+        baseUrl: config.baseUrl,
+        sessionCookies: sessionData,
+        onProgress
+      }
+    );
+    
+    onProgress('save', 'started', 'Tallennetaan kokeita kalenteriin...');
+    
+    // Get or ensure "Koe" category
+    let examCategory = db.prepare('SELECT id FROM categories WHERE name = ? AND family_id IS NULL').get('Koe');
+    if (!examCategory) {
+      const result = db.prepare(
+        'INSERT INTO categories (name, icon, family_id, display_order) VALUES (?, ?, NULL, 100)'
+      ).run('Koe', '📝');
+      examCategory = { id: result.lastInsertRowid };
+    }
+    
+    // Get family members
+    const familyMembers = db.prepare('SELECT id, name FROM members WHERE family_id = ?').all(req.familyId);
+    
+    if (familyMembers.length === 0) {
+      throw new Error('No members found in family');
+    }
+    
+    const matchMember = (studentName) => {
+      if (!studentName) return familyMembers[0].id;
+      const normalized = studentName.toLowerCase().trim();
+      const exactMatch = familyMembers.find(m => 
+        m.name.toLowerCase().split(/\s+/)[0] === normalized
+      );
+      if (exactMatch) return exactMatch.id;
+      const startsWithMatch = familyMembers.find(m => 
+        m.name.toLowerCase().split(/\s+/)[0].startsWith(normalized)
+      );
+      if (startsWithMatch) return startsWithMatch.id;
+      return familyMembers[0].id;
+    };
+    
+    let addedCount = 0;
+    
+    for (const exam of exams) {
+      const existing = db.prepare(
+        'SELECT id FROM events WHERE family_id = ? AND title = ? AND date = ?'
+      ).get(req.familyId, exam.title, exam.date);
+      
+      if (!existing) {
+        const memberId = matchMember(exam.studentName);
+        db.prepare(
+          'INSERT INTO events (family_id, member_id, category_id, title, date, start_time, end_time, is_recurring) VALUES (?, ?, ?, ?, ?, ?, ?, 0)'
+        ).run(req.familyId, memberId, examCategory.id, exam.title, exam.date, exam.time, exam.time);
+        addedCount++;
+      }
+    }
+    
+    // Update session cookies
+    db.prepare(
+      'UPDATE integration_settings SET session_data = ?, last_sync = CURRENT_TIMESTAMP WHERE family_id = ? AND integration_type = ?'
+    ).run(JSON.stringify(cookies), req.familyId, 'school');
+    
+    logSync(req.familyId, 'school', addedCount, 'success');
+    
+    onProgress('save', 'success', `Lisättiin ${addedCount} uutta koetta`);
+    onProgress('complete', 'success', 'Synkronointi valmis!');
+    
+  } catch (error) {
+    console.error('[School Sync SSE] Error:', error);
+    
+    const errorMessage = error.message || 'Unknown error';
+    
+    db.prepare(
+      'INSERT INTO integration_logs (family_id, integration_type, sync_id, step, status, message, error_detail) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(req.familyId, 'school', syncId, 'error', 'error', errorMessage, error.stack);
+    
+    sendEvent({ step: 'error', status: 'error', message: errorMessage, timestamp: new Date().toISOString() });
+    
+    logSync(req.familyId, 'school', 0, 'error', errorMessage);
+  } finally {
+    res.end();
+  }
+});
+
 app.post('/api/families/:familyId/integrations/school/sync', authMiddleware, requireFamily, async (req, res) => {
   const { credentials } = req.body; // { username, password }
   
