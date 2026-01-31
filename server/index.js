@@ -584,10 +584,9 @@ app.put('/api/members/:id', authMiddleware, (req, res) => {
     const m = db.prepare('SELECT role FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, member.family_id);
     if (!m || m.role !== 'owner') return res.status(403).json({ error: 'Only owner can edit members' });
   }
-  const { name, color, exam_url } = req.body;
+  const { name, color } = req.body;
   if (name) db.prepare('UPDATE members SET name = ? WHERE id = ?').run(name, req.params.id);
   if (color) db.prepare('UPDATE members SET color = ? WHERE id = ?').run(color, req.params.id);
-  if (exam_url !== undefined) db.prepare('UPDATE members SET exam_url = ? WHERE id = ?').run(exam_url, req.params.id);
   res.json(db.prepare('SELECT * FROM members WHERE id = ?').get(req.params.id));
 });
 
