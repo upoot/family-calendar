@@ -12,6 +12,7 @@ import NLPBar from './components/NLPBar';
 import TodoWidget from './components/TodoWidget';
 import ShoppingWidget from './components/ShoppingWidget';
 import Timeline from './components/Timeline';
+import DayView from './components/DayView';
 import type { Member, Category, CalendarEvent, EventFormData } from './types';
 
 function getMonday(d: Date): Date {
@@ -60,6 +61,7 @@ export default function App() {
   const [activeEvent, setActiveEvent] = useState<CalendarEvent | null>(null);
   const [copyWeekModal, setCopyWeekModal] = useState(false);
   const [copyWeekMsg, setCopyWeekMsg] = useState<string | null>(null);
+  const [dayView, setDayView] = useState<string | null>(null);
   const [widgetRefresh, setWidgetRefresh] = useState(0);
   const refreshWidgets = () => setWidgetRefresh(k => k + 1);
 
@@ -251,10 +253,23 @@ export default function App() {
 
         <div className="dashboard-layout">
         <div className="dashboard-main">
+        {dayView ? (
+          <DayView
+            date={dayView}
+            members={members}
+            events={events}
+            categories={categories}
+            token={token!}
+            familyId={currentFamilyId}
+            onClose={() => setDayView(null)}
+            onEventClick={(ev) => setModal({ event: ev })}
+          />
+        ) : (
+        <>
         <div className="calendar-grid">
           <div className="grid-header corner"></div>
           {weekDates.map((d, i) => (
-            <div key={i} className="grid-header">
+            <div key={i} className="grid-header" style={{ cursor: 'pointer' }} onClick={() => setDayView(fmt(d))}>
               {DAYS[i]}
               <span className="date-num">{d.getDate()}.{d.getMonth() + 1}.</span>
             </div>
@@ -297,6 +312,8 @@ export default function App() {
         <div className="timeline-divider"></div>
         
         <Timeline familyId={currentFamilyId} token={token} refreshKey={widgetRefresh} onEventClick={jumpToDate} />
+        </>
+        )}
         </div>{/* end dashboard-main */}
 
         <aside className="dashboard-sidebar">

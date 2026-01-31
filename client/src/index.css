@@ -2064,3 +2064,139 @@ header h1::before {
   border-radius: 12px;
   padding: 1.5rem;
 }
+
+/* Day View */
+.day-view {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.day-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-tertiary);
+}
+
+.day-view-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.day-view-header h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.day-view-back {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.day-view-back:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.day-view-weather {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+}
+
+.day-view-grid {
+  display: grid;
+  overflow-x: auto;
+}
+
+.day-view-corner {
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+.day-view-member-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  font-weight: 500;
+  font-size: 0.9rem;
+  justify-content: center;
+}
+
+.day-view-times {
+  border-right: 1px solid var(--border);
+}
+
+.day-view-time-label {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 2px 8px 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.day-view-member-col {
+  position: relative;
+  border-right: 1px solid var(--border);
+}
+
+.day-view-hour-row {
+  border-bottom: 1px solid var(--border);
+}
+
+.day-view-event {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  cursor: pointer;
+  overflow: hidden;
+  z-index: 1;
+  transition: filter 0.15s ease;
+}
+
+.day-view-event:hover {
+  filter: brightness(1.3);
+}
+
+.day-view-event-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.day-view-event-time {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.day-view-event-location {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
