@@ -289,21 +289,38 @@ async function parseExams(page, onProgress) {
         // Extract exam name and subject from title
         // Format: "kpl 9 : ENA1.A ENA112 : 6k"
         // or: "Ruotsin koe KPL 4. : RUB1 Ruotsin kieli (B1-oppimäärä).6A RUB102 : 6k"
+        // or: "kpl 9 : ENA.8A ENA02 : Englanti, A1"
         if (title.includes(':')) {
           const parts = title.split(':').map(p => p.trim());
           const examName = parts[0];
           
-          // Extract subject abbreviation from course code (2nd part)
+          // Try to find subject abbreviation from any part (skip first = exam name)
           let subjectAbbr = '';
-          if (parts.length >= 2) {
-            const codeMatch = parts[1].match(/^([A-ZÄÖÅ]+)/);
-            if (codeMatch) {
-              subjectAbbr = codeMatch[1];
+          let subjectName = '';
+          for (let k = 1; k < parts.length; k++) {
+            // Match course code like ENA, RUB, MAA, KE etc. at start of part or after space
+            const codeMatches = parts[k].match(/\b([A-ZÄÖÅ]{2,4})(?:\d|\.)/g);
+            if (codeMatches) {
+              for (const m of codeMatches) {
+                const abbr = m.replace(/[\d.]+$/, '');
+                if (SUBJECT_MAP[abbr]) {
+                  subjectAbbr = abbr;
+                  subjectName = SUBJECT_MAP[abbr];
+                  break;
+                }
+              }
+            }
+            if (subjectName) break;
+            
+            // Also check if the part itself starts with a known abbreviation
+            const simpleMatch = parts[k].match(/^([A-ZÄÖÅ]{2,4})/);
+            if (simpleMatch && SUBJECT_MAP[simpleMatch[1]]) {
+              subjectAbbr = simpleMatch[1];
+              subjectName = SUBJECT_MAP[subjectAbbr];
+              break;
             }
           }
           
-          // Map abbreviation to full subject name
-          const subjectName = SUBJECT_MAP[subjectAbbr] || subjectAbbr;
           title = subjectName ? `${examName} (${subjectName})` : examName;
         }
         
