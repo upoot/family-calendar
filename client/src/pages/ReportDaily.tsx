@@ -5,7 +5,6 @@ import '../styles/report.css';
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const FINNISH_WEEKDAYS = ['Sunnuntai', 'Maanantai', 'Tiistai', 'Keskiviikko', 'Torstai', 'Perjantai', 'Lauantai'];
-const FINNISH_MONTHS = ['tammikuuta', 'helmikuuta', 'maaliskuuta', 'huhtikuuta', 'toukokuuta', 'kesäkuuta', 'heinäkuuta', 'elokuuta', 'syyskuuta', 'lokakuuta', 'marraskuuta', 'joulukuuta'];
 
 function formatDate(d: Date): string {
   return `${FINNISH_WEEKDAYS[d.getDay()]} ${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
@@ -20,7 +19,6 @@ async function authenticate(email: string, password: string): Promise<{ token: s
   if (!res.ok) throw new Error('Login failed');
   const data = await res.json();
   const token = data.token;
-  // Login doesn't return families — fetch from /api/auth/me
   const meRes = await fetch(`${API}/api/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -64,7 +62,6 @@ export default function ReportDaily() {
         setEvents(await evRes.json());
         setMembers(await memRes.json());
 
-        // Weather
         fetch('https://wttr.in/Jyväskylä?format=%c+%t')
           .then(r => r.text())
           .then(t => setWeather(t.trim()))
@@ -84,6 +81,18 @@ export default function ReportDaily() {
   const allDay = events.filter(e => !e.start_time || e.start_time === '00:00');
   const timed = events.filter(e => e.start_time && e.start_time !== '00:00')
     .sort((a, b) => a.start_time.localeCompare(b.start_time));
+  const hasEvents = allDay.length > 0 || timed.length > 0;
+
+  // Count events per member
+  const memberCounts: Record<number, number> = {};
+  for (const ev of events) {
+    const mid = (ev as any).member_id;
+    if (mid) memberCounts[mid] = (memberCounts[mid] || 0) + 1;
+  }
+
+  // Parse weather
+  const weatherIcon = weather.split(' ')[0] || '';
+  const weatherTemp = weather.split(' ').slice(1).join(' ') || weather;
 
   return (
     <div className="report-page report-daily">
@@ -92,49 +101,101 @@ export default function ReportDaily() {
           <h1>{formatDate(date)}</h1>
           <span className="report-family">{familyName}</span>
         </div>
-        {weather && <div className="report-weather">{weather}</div>}
       </header>
 
-      {allDay.length > 0 && (
-        <section className="report-section">
-          <h2 className="report-section-title">Koko päivä</h2>
-          <div className="report-events">
+      {!hasEvents ? (
+        <div className="report-empty-state">
+          <div className="report-empty-icon">☀️</div>
+          <div className="report-empty-text">Vapaa päivä — ei tapahtumia!</div>
+        </div>
+      ) : (
+        <div className="report-content">
+          {/* Left: Timeline */}
+          <div className="report-timeline">
             {allDay.map(ev => (
-              <div key={ev.id} className="report-event-card">
-                <span className="report-dot" style={{ background: ev.member_color }} />
-                <div className="report-event-info">
-                  <span className="report-event-title">{ev.title}</span>
-                  <span className="report-event-member">{ev.member_name}</span>
-                  {ev.location && <span className="report-event-location">📍 {ev.location}</span>}
+              <div key={ev.id} className="report-timeline-item" style={{ '--dot-color': ev.member_color } as React.CSSProperties}>
+                <style>{`.report-timeline-item[style*="${ev.member_color}"]::before { border-color: ${ev.member_color}; }`}</style>
+                <div className="report-timeline-time">Koko päivä</div>
+                <div className="report-timeline-card">
+                  <span className="report-timeline-title">{ev.title}</span>
+                  <div className="report-timeline-meta">
+                    <span className="report-timeline-member">
+                      <span className="report-dot" style={{ background: ev.member_color }} />
+                      {ev.member_name}
+                    </span>
+                    {ev.location && <span>📍 {ev.location}</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {timed.map(ev => (
+              <div key={ev.id} className="report-timeline-item">
+                <style>{`#tl-${ev.id}::before { border-color: ${ev.member_color}; }`}</style>
+                <div className="report-timeline-time" id={`tl-${ev.id}`}>
+                  {ev.start_time?.slice(0, 5)}
+                  {ev.end_time ? ` – ${ev.end_time.slice(0, 5)}` : ''}
+                </div>
+                <div className="report-timeline-card">
+                  <span className="report-timeline-title">{ev.title}</span>
+                  <div className="report-timeline-meta">
+                    <span className="report-timeline-member">
+                      <span className="report-dot" style={{ background: ev.member_color }} />
+                      {ev.member_name}
+                    </span>
+                    {ev.location && <span>📍 {ev.location}</span>}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
-        </section>
-      )}
 
-      <section className="report-section">
-        <h2 className="report-section-title">Tapahtumat</h2>
-        {timed.length === 0 && allDay.length === 0 && (
-          <p className="report-empty">Ei tapahtumia tälle päivälle</p>
-        )}
-        <div className="report-events">
-          {timed.map(ev => (
-            <div key={ev.id} className="report-event-card">
-              <span className="report-dot" style={{ background: ev.member_color }} />
-              <div className="report-event-time">
-                {ev.start_time?.slice(0, 5)}
-                {ev.end_time && ` – ${ev.end_time.slice(0, 5)}`}
+          {/* Right: Info cards */}
+          <div className="report-sidebar">
+            {weather && (
+              <div className="report-info-card report-weather-card">
+                <h3>Sää — Jyväskylä</h3>
+                <div className="report-weather-main">
+                  <span className="report-weather-icon">{weatherIcon}</span>
+                  <span className="report-weather-temp">{weatherTemp}</span>
+                </div>
               </div>
-              <div className="report-event-info">
-                <span className="report-event-title">{ev.title}</span>
-                <span className="report-event-member">{ev.member_name}</span>
-                {ev.location && <span className="report-event-location">📍 {ev.location}</span>}
+            )}
+
+            <div className="report-info-card">
+              <h3>Yhteenveto</h3>
+              <div className="report-member-summary">
+                {members.map(m => {
+                  const count = memberCounts[m.id] || 0;
+                  return (
+                    <div key={m.id} className="report-member-row">
+                      <span className="report-dot" style={{ background: m.color }} />
+                      <span className="report-member-name">{m.name}</span>
+                      <span className="report-member-count">
+                        {count === 0 ? 'Vapaa' : `${count} tapahtuma${count > 1 ? 'a' : ''}`}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          ))}
+
+            {allDay.length > 0 && (
+              <div className="report-info-card">
+                <h3>Koko päivän tapahtumat</h3>
+                <div className="report-allday-list">
+                  {allDay.map(ev => (
+                    <div key={ev.id} className="report-allday-item">
+                      <span className="report-dot" style={{ background: ev.member_color }} />
+                      <span className="report-allday-title">{ev.title}</span>
+                      <span className="report-allday-member">{ev.member_name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </section>
+      )}
 
       <footer className="report-footer">
         <div className="report-members">
