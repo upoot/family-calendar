@@ -584,10 +584,9 @@ app.put('/api/members/:id', authMiddleware, (req, res) => {
     const m = db.prepare('SELECT role FROM family_users WHERE user_id = ? AND family_id = ?').get(req.user.id, member.family_id);
     if (!m || m.role !== 'owner') return res.status(403).json({ error: 'Only owner can edit members' });
   }
-  const { name, color, exam_url } = req.body;
+  const { name, color } = req.body;
   if (name) db.prepare('UPDATE members SET name = ? WHERE id = ?').run(name, req.params.id);
   if (color) db.prepare('UPDATE members SET color = ? WHERE id = ?').run(color, req.params.id);
-  if (exam_url !== undefined) db.prepare('UPDATE members SET exam_url = ? WHERE id = ?').run(exam_url, req.params.id);
   res.json(db.prepare('SELECT * FROM members WHERE id = ?').get(req.params.id));
 });
 
@@ -1183,21 +1182,10 @@ app.put('/api/families/:familyId/integrations/:type', authMiddleware, requireFam
 
 // SSE endpoint for live sync progress
 app.get('/api/families/:familyId/integrations/school/sync-stream', authMiddleware, requireFamily, async (req, res) => {
-  const { username, password } = req.query;
+  const { url, username, password } = req.query;
   
-  if (!username || !password) {
-    return res.status(400).json({ error: 'School credentials required' });
-  }
-  
-  // Get saved settings
-  const settings = db.prepare(
-    'SELECT config, session_data FROM integration_settings WHERE family_id = ? AND integration_type = ?'
-  ).get(req.familyId, 'school');
-  
-  const config = settings?.config ? JSON.parse(settings.config) : {};
-  
-  if (!config.baseUrl) {
-    return res.status(400).json({ error: 'School URL not configured' });
+  if (!url || !username || !password) {
+    return res.status(400).json({ error: 'URL and credentials required' });
   }
   
   // Rate limit check
@@ -1235,15 +1223,14 @@ app.get('/api/families/:familyId/integrations/school/sync-stream', authMiddlewar
   try {
     onProgress('init', 'started', 'Aloitetaan synkronointi...');
     
-    const sessionData = settings?.session_data ? JSON.parse(settings.session_data) : null;
     const { scrapeSchoolExams } = await import('./integrations/school-scraper.js');
     
     // Run scraper with progress
     const { exams, cookies } = await scrapeSchoolExams(
       { username, password },
       {
-        baseUrl: config.baseUrl,
-        sessionCookies: sessionData,
+        baseUrl: url,
+        sessionCookies: null,
         onProgress
       }
     );
@@ -1295,11 +1282,6 @@ app.get('/api/families/:familyId/integrations/school/sync-stream', authMiddlewar
         addedCount++;
       }
     }
-    
-    // Update session cookies
-    db.prepare(
-      'UPDATE integration_settings SET session_data = ?, last_sync = CURRENT_TIMESTAMP WHERE family_id = ? AND integration_type = ?'
-    ).run(JSON.stringify(cookies), req.familyId, 'school');
     
     logSync(req.familyId, 'school', addedCount, 'success');
     
