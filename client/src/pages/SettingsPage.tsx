@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import IntegrationSyncModal from '../components/IntegrationSyncModal';
 
 const PRESET_COLORS = ['#f472b6', '#22d3ee', '#fbbf24', '#a78bfa', '#34d399', '#f87171', '#fb923c', '#60a5fa'];
 
@@ -11,6 +12,7 @@ interface MemberData {
   color: string;
   display_order: number;
   user_id?: number | null;
+  exam_url?: string | null;
 }
 
 interface FamilyUserData {
@@ -65,6 +67,7 @@ export default function SettingsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('');
+  const [editExamUrl, setEditExamUrl] = useState('');
 
   // Category form
   const [newCatName, setNewCatName] = useState('');
@@ -92,8 +95,8 @@ export default function SettingsPage() {
   const [schoolPassword, setSchoolPassword] = useState('');
   const [schoolLastSync, setSchoolLastSync] = useState<string | null>(null);
   const [schoolSaving, setSchoolSaving] = useState(false);
-  const [schoolSyncing, setSchoolSyncing] = useState(false);
   const [schoolMessage, setSchoolMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [showSyncModal, setShowSyncModal] = useState(false);
 
   // Scroll spy
   const [activeSection, setActiveSection] = useState<SectionId>('general');
@@ -176,11 +179,11 @@ export default function SettingsPage() {
     loadData();
   };
 
-  const startEdit = (m: MemberData) => { setEditingId(m.id); setEditName(m.name); setEditColor(m.color); };
+  const startEdit = (m: MemberData) => { setEditingId(m.id); setEditName(m.name); setEditColor(m.color); setEditExamUrl(m.exam_url || ''); };
 
   const saveEdit = async () => {
     if (!editingId || !editName.trim()) return;
-    await fetch(`/api/members/${editingId}`, { method: 'PUT', headers, body: JSON.stringify({ name: editName, color: editColor }) });
+    await fetch(`/api/members/${editingId}`, { method: 'PUT', headers, body: JSON.stringify({ name: editName, color: editColor, exam_url: editExamUrl || null }) });
     setEditingId(null);
     loadData();
   };
@@ -287,43 +290,34 @@ export default function SettingsPage() {
     }
   };
 
-  const syncSchool = async () => {
+  const syncSchool = () => {
     if (!schoolCity.trim() || !schoolUsername.trim() || !schoolPassword.trim()) {
       setSchoolMessage({ text: t('settings.integrations.school.allFieldsRequired'), type: 'error' });
       setTimeout(() => setSchoolMessage(null), 3000);
       return;
     }
-    setSchoolSyncing(true);
-    setSchoolMessage(null);
-    try {
-      const res = await fetch(`/api/families/${currentFamilyId}/integrations/school/sync`, {
-        method: 'POST', headers,
-        body: JSON.stringify({
-          credentials: { username: schoolUsername, password: schoolPassword }
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Sync failed');
-      }
-      setSchoolMessage({ 
-        text: t('settings.integrations.school.syncSuccess', { added: data.added, total: data.total }), 
-        type: 'success' 
-      });
-      loadData(); // Refresh last sync time
-      setTimeout(() => setSchoolMessage(null), 5000);
-    } catch (err: any) {
-      setSchoolMessage({ text: err.message, type: 'error' });
-      setTimeout(() => setSchoolMessage(null), 5000);
-    } finally {
-      setSchoolSyncing(false);
-    }
+    setShowSyncModal(true);
+  };
+
+  const closeSyncModal = () => {
+    setShowSyncModal(false);
+    loadData(); // Refresh data after sync
   };
 
   if (!isOwner) return null;
 
   return (
-    <div className="settings-page">
+    <>
+      {showSyncModal && currentFamilyId && (
+        <IntegrationSyncModal 
+          onClose={closeSyncModal}
+          familyId={currentFamilyId}
+          username={schoolUsername}
+          password={schoolPassword}
+        />
+      )}
+      
+      <div className="settings-page">
       <header className="settings-header">
         <h1>⚙️ {t('settings.title')}</h1>
         <Link to="/" className="settings-back-link">{t('settings.backToCalendar')}</Link>
@@ -370,13 +364,24 @@ export default function SettingsPage() {
               {members.map((m, i) => (
                 <div key={m.id} className="settings-member-row">
                   {editingId === m.id ? (
-                    <>
-                      <input type="color" value={editColor} onChange={e => setEditColor(e.target.value)} className="settings-color-input" />
-                      <input value={editName} onChange={e => setEditName(e.target.value)} className="settings-input" style={{ flex: 1 }}
-                        onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }} autoFocus />
-                      <button className="btn-sm" onClick={saveEdit}>✓</button>
-                      <button className="btn-sm" onClick={() => setEditingId(null)}>✕</button>
-                    </>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%', padding: '0.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <input type="color" value={editColor} onChange={e => setEditColor(e.target.value)} className="settings-color-input" />
+                        <input value={editName} onChange={e => setEditName(e.target.value)} className="settings-input" style={{ flex: 1 }}
+                          placeholder="Name" onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }} autoFocus />
+                      </div>
+                      <input 
+                        value={editExamUrl} 
+                        onChange={e => setEditExamUrl(e.target.value)} 
+                        className="settings-input" 
+                        placeholder="School exam URL (optional)" 
+                        style={{ fontSize: '0.8rem' }}
+                      />
+                      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                        <button className="btn-sm" onClick={saveEdit}>✓ Save</button>
+                        <button className="btn-sm" onClick={() => setEditingId(null)}>✕ Cancel</button>
+                      </div>
+                    </div>
                   ) : (
                     <>
                       <span className="member-dot" style={{ background: m.color, width: '12px', height: '12px' }} />
@@ -518,6 +523,34 @@ export default function SettingsPage() {
                 </div>
               )}
               
+              {/* Members with school integration */}
+              <div style={{ marginBottom: '1.5rem', padding: '0.75rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
+                  Members with school integration:
+                </h4>
+                {members.filter(m => m.exam_url).length > 0 ? (
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {members.filter(m => m.exam_url).map(m => (
+                      <li key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+                        <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: m.color }} />
+                        <span style={{ fontWeight: 500 }}>{m.name}</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {m.exam_url}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>
+                    No members with exam URLs configured. Edit a member to add their school exam URL.
+                  </p>
+                )}
+              </div>
+              
+              <h4 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>
+                School credentials (shared for all members):
+              </h4>
+              
               <label className="settings-label">{t('settings.integrations.school.baseUrl')}</label>
               <input 
                 value={schoolCity} 
@@ -554,10 +587,10 @@ export default function SettingsPage() {
                 <button 
                   className="btn-primary" 
                   onClick={syncSchool} 
-                  disabled={schoolSyncing || !schoolCity.trim() || !schoolUsername.trim() || !schoolPassword.trim()}
+                  disabled={!schoolCity.trim() || !schoolUsername.trim() || !schoolPassword.trim()}
                   style={{ backgroundColor: 'var(--color-success)' }}
                 >
-                  {schoolSyncing ? t('settings.integrations.school.syncing') : t('settings.integrations.school.syncNow')}
+                  {t('settings.integrations.school.syncNow')}
                 </button>
               </div>
               
@@ -594,5 +627,6 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
