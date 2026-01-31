@@ -12,12 +12,15 @@ export async function scrapeSchoolExams(credentials, options = {}) {
   const {
     baseUrl,
     sessionCookies = null,
-    headless = true
+    headless = true,
+    onProgress = () => {} // Callback: (step, status, message) => void
   } = options;
   
   if (!baseUrl) {
     throw new Error('baseUrl is required');
   }
+
+  onProgress('init', 'started', 'Käynnistetään selainta...');
 
   const browser = await chromium.launch({
     headless,
@@ -46,26 +49,33 @@ export async function scrapeSchoolExams(credentials, options = {}) {
 
     const page = await context.newPage();
 
+    onProgress('auth', 'started', 'Tarkistetaan istuntoa...');
+
     // Check if session is still valid
     await page.goto(`${baseUrl}/calendar`, { waitUntil: 'domcontentloaded' });
     await randomDelay(500, 1500);
 
     // If redirected to login, authenticate
     if (page.url().includes('login') || page.url().includes('index_login')) {
-      console.log('[School] Session expired, logging in...');
-      await login(page, credentials, baseUrl);
+      onProgress('auth', 'started', 'Kirjaudutaan sisään...');
+      await login(page, credentials, baseUrl, onProgress);
+      onProgress('auth', 'success', 'Kirjautuminen onnistui');
     } else {
-      console.log('[School] Session valid, reusing cookies');
+      onProgress('auth', 'success', 'Istunto voimassa, käytetään tallennettuja evästeitä');
     }
 
     // Navigate to calendar
     if (!page.url().includes('calendar')) {
+      onProgress('navigate', 'started', 'Siirrytään kalenteriin...');
       await page.goto(`${baseUrl}/calendar`, { waitUntil: 'networkidle' });
       await randomDelay(300, 800);
+      onProgress('navigate', 'success', 'Kalenteri ladattu');
     }
 
     // Parse exams from calendar
-    const exams = await parseExams(page);
+    onProgress('find_exams', 'started', 'Haetaan kokeita kalenterista...');
+    const exams = await parseExams(page, onProgress);
+    onProgress('find_exams', 'success', `Löydettiin ${exams.length} koetta`);
 
     // Save cookies for next time
     const cookies = await context.cookies();
@@ -79,17 +89,21 @@ export async function scrapeSchoolExams(credentials, options = {}) {
   }
 }
 
-async function login(page, credentials, baseUrl) {
+async function login(page, credentials, baseUrl, onProgress) {
   const { username, password } = credentials;
 
   await page.goto(`${baseUrl}/index_login`, { waitUntil: 'domcontentloaded' });
   await randomDelay(500, 1000);
+
+  onProgress('auth', 'started', 'Täytetään kirjautumislomaketta...');
 
   // Fill login form (School-specific selectors)
   await page.fill('input[name="Login"]', username);
   await randomDelay(100, 300);
   await page.fill('input[name="Password"]', password);
   await randomDelay(200, 500);
+
+  onProgress('auth', 'started', 'Lähetetään kirjautumistiedot...');
 
   // Submit
   await page.click('input[type="submit"]');
@@ -104,11 +118,15 @@ async function login(page, credentials, baseUrl) {
   console.log('[School] Login successful');
 }
 
-async function parseExams(page) {
+async function parseExams(page, onProgress) {
+  onProgress('find_exams', 'started', 'Etsitään kalenterin elementtejä...');
+  
   // Wait for calendar to load
   await page.waitForSelector('table.schedule, .calendar, #schedule', { timeout: 10000 }).catch(() => {
     throw new Error('Calendar not found - page structure may have changed');
   });
+  
+  onProgress('find_exams', 'started', 'Jäsennetään kokeiden tietoja...');
 
   const exams = await page.evaluate(() => {
     const events = [];
