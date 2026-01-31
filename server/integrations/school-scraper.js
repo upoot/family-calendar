@@ -102,10 +102,20 @@ export async function scrapeSchoolExams(credentials, options = {}) {
     const exams = await parseExams(page, onProgress);
     onProgress('find_exams', 'success', `Löydettiin ${exams.length} koetta kalenterista`);
 
-    // Save cookies for next time
-    onProgress('save', 'started', 'Tallennetaan evästeitä seuraavaa kertaa varten...');
-    const cookies = await context.cookies();
-    onProgress('save', 'success', `${cookies.length} evästettä tallennettu ✅`);
+    // Logout before closing to avoid duplicate session warnings
+    onProgress('save', 'started', 'Kirjaudutaan ulos...');
+    try {
+      // Try common logout paths
+      const currentUrl = new URL(page.url());
+      const logoutUrl = `${currentUrl.origin}/logout`;
+      await page.goto(logoutUrl, { waitUntil: 'domcontentloaded', timeout: 5000 });
+      onProgress('save', 'success', 'Uloskirjautuminen onnistui ✅');
+    } catch (e) {
+      // Logout failed - not critical, continue
+      onProgress('save', 'started', 'Uloskirjautuminen ohitettu (ei kriittinen)');
+    }
+    
+    await randomDelay(300, 500);
 
     onProgress('save', 'started', 'Suljetaan selain...');
     await browser.close();
