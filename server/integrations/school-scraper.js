@@ -1,45 +1,63 @@
 import { chromium } from 'playwright';
 
 /**
- * Stealth School scraper - responsible data access
- * - Authenticated users only (own child's data)
- * - Session reuse (cookies cached)
- * - Respectful delays
- * - Human-like behavior
+ * Generic school system scraper
+ * - Works with any login-redirect pattern
+ * - No hardcoded paths or selectors
+ * - Follows redirects naturally
+ * - Session reuse via cookies
+ * - Detailed progress reporting via onProgress callback
  */
 
 export async function scrapeSchoolExams(credentials, options = {}) {
   const {
-    baseUrl,
+    targetUrl,  // Full URL to exams page (will redirect to login if needed)
     sessionCookies = null,
     headless = true,
     onProgress = () => {} // Callback: (step, status, message) => void
   } = options;
   
-  if (!baseUrl) {
-    throw new Error('baseUrl is required');
+  if (!targetUrl) {
+    onProgress('init', 'error', 'targetUrl puuttuu');
+    throw new Error('targetUrl is required (full URL to exams calendar)');
   }
 
-  onProgress('init', 'started', 'Käynnistetään selainta...');
+  onProgress('init', 'started', 'Käynnistetään Playwright-selainta...');
 
-  const browser = await chromium.launch({
-    headless,
-    args: [
-      '--disable-blink-features=AutomationControlled',
-      '--disable-dev-shm-usage',
-      '--no-sandbox' // EC2 needs this
-    ],
-    executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium-browser'
-  });
+  let browser;
+  try {
+    browser = await chromium.launch({
+      headless,
+      args: [
+        '--disable-blink-features=AutomationControlled',
+        '--disable-dev-shm-usage',
+        '--no-sandbox' // EC2 needs this
+      ],
+      executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium-browser'
+    });
+  } catch (error) {
+    onProgress('init', 'error', `Selaimen käynnistys epäonnistui: ${error.message}`);
+    throw error;
+  }
+
+  onProgress('init', 'success', 'Selain käynnistetty ✅');
 
   try {
-    const context = await browser.newContext({
+    onProgress('init', 'started', 'Luodaan selainkonteksti...');
+    
+    const contextOptions = {
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
       viewport: { width: 1920, height: 1080 },
       locale: 'fi-FI',
-      timezoneId: 'Europe/Helsinki',
-      ...(sessionCookies && { storageState: { cookies: sessionCookies } })
-    });
+      timezoneId: 'Europe/Helsinki'
+    };
+    
+    if (sessionCookies) {
+      contextOptions.storageState = { cookies: sessionCookies };
+      onProgress('init', 'started', 'Ladataan tallennettuja evästeitä...');
+    }
+    
+    const context = await browser.newContext(contextOptions);
 
     // Remove webdriver detection
     await context.addInitScript(() => {
@@ -48,146 +66,304 @@ export async function scrapeSchoolExams(credentials, options = {}) {
     });
 
     const page = await context.newPage();
+    onProgress('init', 'success', 'Konteksti ja sivu valmis ✅');
 
-    onProgress('auth', 'started', 'Tarkistetaan istuntoa...');
-
-    // Check if session is still valid
-    await page.goto(`${baseUrl}/calendar`, { waitUntil: 'domcontentloaded' });
+    // Navigate to target URL
+    onProgress('navigate', 'started', `Navigoidaan: ${targetUrl}`);
+    
+    try {
+      await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    } catch (error) {
+      onProgress('navigate', 'error', `Navigointi epäonnistui: ${error.message}`);
+      throw error;
+    }
+    
     await randomDelay(500, 1500);
+    onProgress('navigate', 'success', 'Sivu ladattu ✅');
 
-    // If redirected to login, authenticate
-    if (page.url().includes('login') || page.url().includes('index_login')) {
-      onProgress('auth', 'started', 'Kirjaudutaan sisään...');
-      await login(page, credentials, baseUrl, onProgress);
-      onProgress('auth', 'success', 'Kirjautuminen onnistui');
+    // Check if we were redirected to login
+    const currentUrl = page.url();
+    
+    if (currentUrl.includes('login')) {
+      onProgress('navigate', 'success', 'Redirectattiin login-sivulle → kirjautuminen tarvitaan');
+      
+      // Generic login - find form and fill it
+      await loginGeneric(page, credentials, onProgress);
+      
+      // Wait for redirect back to target
+      await randomDelay(500, 1000);
     } else {
-      onProgress('auth', 'success', 'Istunto voimassa, käytetään tallennettuja evästeitä');
+      onProgress('navigate', 'success', 'Ei redirectiä → sessio voimassa');
+      onProgress('auth', 'success', 'Istunto voimassa, käytetään tallennettuja evästeitä ✅');
     }
 
-    // Navigate to calendar
-    if (!page.url().includes('calendar')) {
-      onProgress('navigate', 'started', 'Siirrytään kalenteriin...');
-      await page.goto(`${baseUrl}/calendar`, { waitUntil: 'networkidle' });
-      await randomDelay(300, 800);
-      onProgress('navigate', 'success', 'Kalenteri ladattu');
-    }
-
-    // Parse exams from calendar
-    onProgress('find_exams', 'started', 'Haetaan kokeita kalenterista...');
+    // We should now be on the exams calendar page
+    onProgress('find_exams', 'started', 'Etsitään kokeiden kalenteria sivulta...');
     const exams = await parseExams(page, onProgress);
-    onProgress('find_exams', 'success', `Löydettiin ${exams.length} koetta`);
+    onProgress('find_exams', 'success', `Löydettiin ${exams.length} koetta kalenterista`);
 
-    // Save cookies for next time
-    const cookies = await context.cookies();
+    // Logout before closing to avoid duplicate session warnings
+    onProgress('save', 'started', 'Kirjaudutaan ulos...');
+    try {
+      // Click the logout button
+      await page.click('#logout-button', { timeout: 5000 });
+      onProgress('save', 'success', 'Uloskirjautuminen onnistui ✅');
+    } catch (e) {
+      // Logout failed - not critical, continue
+      onProgress('save', 'started', 'Uloskirjautuminen ohitettu (ei kriittinen)');
+    }
+    
+    await randomDelay(300, 500);
 
+    onProgress('save', 'started', 'Suljetaan selain...');
     await browser.close();
+    onProgress('save', 'success', `Valmis! ${exams.length} koetta palautettu ✅`);
 
     return { exams, cookies };
   } catch (error) {
+    onProgress('error', 'error', `Virhe: ${error.message}`);
     await browser.close();
     throw error;
   }
 }
 
-async function login(page, credentials, baseUrl, onProgress) {
+async function loginGeneric(page, credentials, onProgress) {
   const { username, password } = credentials;
 
-  await page.goto(`${baseUrl}/index_login`, { waitUntil: 'domcontentloaded' });
-  await randomDelay(500, 1000);
+  onProgress('auth', 'started', 'Etsitään kirjautumislomaketta...');
 
-  onProgress('auth', 'started', 'Täytetään kirjautumislomaketta...');
-
-  // Fill login form (School-specific selectors)
-  await page.fill('input[name="Login"]', username);
-  await randomDelay(100, 300);
-  await page.fill('input[name="Password"]', password);
-  await randomDelay(200, 500);
-
-  onProgress('auth', 'started', 'Lähetetään kirjautumistiedot...');
-
-  // Submit
-  await page.click('input[type="submit"]');
-  await page.waitForNavigation({ waitUntil: 'networkidle' });
-  await randomDelay(500, 1000);
-
-  // Check if login succeeded
-  if (page.url().includes('index_login') || page.url().includes('error')) {
-    throw new Error('School login failed - check credentials');
+  // Find login form generically
+  const usernameInput = await page.locator('input[name="Login"], input[name="login"], input[name="username"], input[name="user"]').first();
+  const passwordInput = await page.locator('input[name="Password"], input[name="password"], input[name="passwd"]').first();
+  
+  const usernameCount = await usernameInput.count();
+  const passwordCount = await passwordInput.count();
+  
+  if (!usernameCount || !passwordCount) {
+    onProgress('auth', 'error', `Kirjautumislomaketta ei löydetty (username: ${usernameCount}, password: ${passwordCount})`);
+    throw new Error('Could not find login form fields');
   }
 
-  console.log('[School] Login successful');
+  onProgress('auth', 'started', 'Lomake löydetty, täytetään käyttäjätunnus...');
+  await usernameInput.fill(username);
+  await randomDelay(100, 300);
+  
+  onProgress('auth', 'started', 'Täytetään salasana...');
+  await passwordInput.fill(password);
+  await randomDelay(200, 500);
+
+  onProgress('auth', 'started', 'Etsitään lähetä-painiketta...');
+  const submitButton = await page.locator('input[type="submit"], button[type="submit"]').first();
+  const submitCount = await submitButton.count();
+  
+  if (!submitCount) {
+    onProgress('auth', 'error', 'Lähetä-painiketta ei löydetty');
+    throw new Error('Could not find submit button');
+  }
+
+  onProgress('auth', 'started', 'Lähetetään kirjautumislomake...');
+  await submitButton.click();
+  
+  onProgress('auth', 'started', 'Odotetaan kirjautumisen valmistumista...');
+  
+  // Wait for navigation (redirect back to returnpath)
+  try {
+    await page.waitForLoadState('networkidle', { timeout: 15000 });
+  } catch (error) {
+    onProgress('auth', 'error', `Kirjautumisen odotus aikakatkaistiin: ${error.message}`);
+    throw error;
+  }
+  
+  await randomDelay(500, 1000);
+
+  // Check if login succeeded (we should NOT be on login page anymore)
+  const finalUrl = page.url();
+  
+  if (finalUrl.includes('login')) {
+    onProgress('auth', 'error', 'Kirjautuminen epäonnistui - väärät tunnukset?');
+    throw new Error('Login failed - still on login page (check credentials)');
+  }
+
+  onProgress('auth', 'success', `Kirjautuminen onnistui! Redirectattiin: ${finalUrl}`);
+  console.log('[Scraper] Login successful, redirected to:', finalUrl);
 }
 
 async function parseExams(page, onProgress) {
-  onProgress('find_exams', 'started', 'Etsitään kalenterin elementtejä...');
+  onProgress('find_exams', 'started', 'Etsitään kokeiden taulukoita...');
   
-  // Wait for calendar to load
-  await page.waitForSelector('table.schedule, .calendar, #schedule', { timeout: 10000 }).catch(() => {
-    throw new Error('Calendar not found - page structure may have changed');
-  });
+  // Generic table finder - try multiple selectors to be resilient
+  const tableSelectors = [
+    'table.table-grey',
+    'table[class*="exam"]',
+    'table[class*="calendar"]',
+    '.exam-table table',
+    '.calendar-table table',
+    'table' // Fallback to any table
+  ];
   
+  let tables = null;
+  let usedSelector = null;
+  for (const selector of tableSelectors) {
+    tables = await page.locator(selector).count();
+    if (tables > 0) {
+      usedSelector = selector;
+      console.log(`[Scraper] Found ${tables} tables with selector: ${selector}`);
+      break;
+    }
+  }
+  
+  if (!tables || tables === 0) {
+    onProgress('find_exams', 'error', 'Taulukoita ei löydetty - sivurakenne on muuttunut?');
+    throw new Error('No exam tables found - page structure may have changed');
+  }
+  
+  onProgress('find_exams', 'started', `Löydettiin ${tables} taulukko(a) (${usedSelector})`);
   onProgress('find_exams', 'started', 'Jäsennetään kokeiden tietoja...');
 
   const exams = await page.evaluate(() => {
+    // Subject abbreviation to full name mapping
+    const SUBJECT_MAP = {
+      'ENA': 'Englanti',
+      'ENB': 'Englanti',
+      'RUB': 'Ruotsi',
+      'RUA': 'Ruotsi',
+      'MA': 'Matematiikka',
+      'MAA': 'Matematiikka',
+      'MAB': 'Matematiikka',
+      'KE': 'Kemia',
+      'GE': 'Maantieto',
+      'FY': 'Fysiikka',
+      'BI': 'Biologia',
+      'HI': 'Historia',
+      'YH': 'Yhteiskuntaoppi',
+      'AI': 'Äidinkieli',
+      'UE': 'Uskonto',
+      'ET': 'Elämänkatsomustieto',
+      'TE': 'Terveystieto',
+      'KU': 'Kuvataide',
+      'MU': 'Musiikki',
+      'LI': 'Liikunta',
+      'KS': 'Käsityö',
+      'KO': 'Kotitalous',
+      'OP': 'Opinto-ohjaus',
+      'SAA': 'Saame',
+      'RAA': 'Ranska',
+      'SAK': 'Saksa',
+      'VEA': 'Venäjä',
+      'ESA': 'Espanja',
+      'ITA': 'Italia',
+      'LAB': 'Latina'
+    };
+    
     const events = [];
+    const tables = document.querySelectorAll('table');
     
-    // School shows events in a table structure
-    // Look for exam rows (usually contain word "koe" or specific class)
-    const rows = document.querySelectorAll('tr.schedule-item, tr.event-row, table.schedule tr');
-    
-    rows.forEach(row => {
-      const cells = row.querySelectorAll('td');
-      if (cells.length < 2) return;
+    tables.forEach(table => {
+      const rows = Array.from(table.querySelectorAll('tr'));
+      if (rows.length === 0) return;
       
-      // Try to extract exam info from row
-      const rowText = row.textContent || '';
+      // Each exam consists of multiple rows:
+      // Row 1: Date | Title (has date pattern)
+      // Row 2: "Opettaja" | Teacher name (optional)
+      // Row 3: "Kokeen lisätiedot" | Description (optional)
       
-      // Check if it's an exam (contains "koe", "tentti", "exam", "test")
-      if (!/\b(koe|tentti|exam|test|kokeet)\b/i.test(rowText)) return;
-      
-      // Extract date (look for DD.MM.YYYY or similar)
-      const dateMatch = rowText.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-      if (!dateMatch) return;
-      
-      const [, day, month, year] = dateMatch;
-      const dateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-      
-      // Extract time (look for HH:MM or HH.MM)
-      const timeMatch = rowText.match(/(\d{1,2})[:.:](\d{2})/);
-      const timeStr = timeMatch ? `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}` : '08:00';
-      
-      // Extract student name (usually first name visible)
-      // Look for capitalized words that might be names
-      const nameMatch = rowText.match(/\b([A-ZÅÄÖ][a-zåäö]+)\b/);
-      const studentName = nameMatch ? nameMatch[1] : null;
-      
-      // Extract exam subject/title (remove date, time, name)
-      let title = rowText
-        .replace(/\d{1,2}\.\d{1,2}\.\d{4}/g, '')
-        .replace(/\d{1,2}[:.]\d{2}/g, '')
-        .replace(/\b(ma|ti|ke|to|pe|la|su)\b/gi, '')
-        .replace(/\(.*?\)/g, '')
-        .trim();
-      
-      // Clean up excessive whitespace
-      title = title.replace(/\s+/g, ' ').trim();
-      
-      if (title && dateStr) {
-        events.push({
-          title: title,
-          date: dateStr,
-          time: timeStr,
-          studentName: studentName,
-          type: 'exam',
-          source: 'school'
-        });
+      let i = 0;
+      while (i < rows.length) {
+        const cells = Array.from(rows[i].querySelectorAll('td'));
+        if (cells.length < 2) { i++; continue; }
+        
+        const dateText = cells[0].textContent.trim();
+        const titleText = cells[1].textContent.trim();
+        
+        // Check if this row has a date (= start of an exam entry)
+        const dateMatch = dateText.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+        if (!dateMatch) { i++; continue; }
+        
+        const [, day, month, year] = dateMatch;
+        const dateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        
+        // Parse title
+        let title = titleText.replace(/\s+/g, ' ').trim();
+        let description = '';
+        
+        // Extract exam name and subject from title
+        // Format: "kpl 9 : ENA1.A ENA112 : 6k"
+        // or: "Ruotsin koe KPL 4. : RUB1 Ruotsin kieli (B1-oppimäärä).6A RUB102 : 6k"
+        // or: "kpl 9 : ENA.8A ENA02 : Englanti, A1"
+        if (title.includes(':')) {
+          const parts = title.split(':').map(p => p.trim());
+          const examName = parts[0];
+          
+          // Try to find subject abbreviation from any part (skip first = exam name)
+          let subjectAbbr = '';
+          let subjectName = '';
+          for (let k = 1; k < parts.length; k++) {
+            // Match course code like ENA, RUB, MAA, KE etc. at start of part or after space
+            const codeMatches = parts[k].match(/\b([A-ZÄÖÅ]{2,4})(?:\d|\.)/g);
+            if (codeMatches) {
+              for (const m of codeMatches) {
+                const abbr = m.replace(/[\d.]+$/, '');
+                if (SUBJECT_MAP[abbr]) {
+                  subjectAbbr = abbr;
+                  subjectName = SUBJECT_MAP[abbr];
+                  break;
+                }
+              }
+            }
+            if (subjectName) break;
+            
+            // Also check if the part itself starts with a known abbreviation
+            const simpleMatch = parts[k].match(/^([A-ZÄÖÅ]{2,4})/);
+            if (simpleMatch && SUBJECT_MAP[simpleMatch[1]]) {
+              subjectAbbr = simpleMatch[1];
+              subjectName = SUBJECT_MAP[subjectAbbr];
+              break;
+            }
+          }
+          
+          title = subjectName ? `${examName} (${subjectName})` : examName;
+        }
+        
+        // Look ahead for teacher and description rows
+        let j = i + 1;
+        while (j < rows.length) {
+          const nextCells = Array.from(rows[j].querySelectorAll('td'));
+          if (nextCells.length < 2) break;
+          
+          const label = nextCells[0].textContent.trim().toLowerCase();
+          const value = nextCells[1].textContent.trim();
+          
+          // Check if this is a new exam (has a date)
+          if (label.match(/\d{1,2}\.\d{1,2}\.\d{4}/)) break;
+          
+          if (label.includes('lisätiedot') || label.includes('lisätieto')) {
+            description = value;
+          }
+          // Skip "Opettaja" row - we don't need teacher info
+          
+          j++;
+        }
+        
+        if (title && title.length > 2 && dateStr) {
+          events.push({
+            title: title,
+            date: dateStr,
+            time: '08:00',
+            type: 'exam',
+            source: 'school',
+            description: description || ''
+          });
+        }
+        
+        // Skip to next exam
+        i = j;
       }
     });
 
     return events;
   });
 
-  console.log(`[School] Found ${exams.length} exams`);
+  console.log(`[Scraper] Found ${exams.length} exams`);
   return exams;
 }
 
