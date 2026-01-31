@@ -119,11 +119,11 @@ async function login(page, credentials, baseUrl, onProgress) {
 }
 
 async function parseExams(page, onProgress) {
-  onProgress('find_exams', 'started', 'Etsitään kalenterin elementtejä...');
+  onProgress('find_exams', 'started', 'Etsitään kokeiden taulukoita...');
   
-  // Wait for calendar to load
-  await page.waitForSelector('table.schedule, .calendar, #schedule', { timeout: 10000 }).catch(() => {
-    throw new Error('Calendar not found - page structure may have changed');
+  // Wait for exam tables to load
+  await page.waitForSelector('table.table-grey', { timeout: 10000 }).catch(() => {
+    throw new Error('Exam tables not found - page structure may have changed');
   });
   
   onProgress('find_exams', 'started', 'Jäsennetään kokeiden tietoja...');
@@ -131,53 +131,51 @@ async function parseExams(page, onProgress) {
   const exams = await page.evaluate(() => {
     const events = [];
     
-    // School shows events in a table structure
-    // Look for exam rows (usually contain word "koe" or specific class)
-    const rows = document.querySelectorAll('tr.schedule-item, tr.event-row, table.schedule tr');
+    // Find all exam tables (each exam is in its own table)
+    const tables = document.querySelectorAll('table.table-grey');
     
-    rows.forEach(row => {
-      const cells = row.querySelectorAll('td');
+    tables.forEach(table => {
+      const rows = table.querySelectorAll('tr');
+      if (rows.length === 0) return;
+      
+      // First row contains date and title
+      const firstRow = rows[0];
+      const cells = firstRow.querySelectorAll('td');
       if (cells.length < 2) return;
       
-      // Try to extract exam info from row
-      const rowText = row.textContent || '';
-      
-      // Check if it's an exam (contains "koe", "tentti", "exam", "test")
-      if (!/\b(koe|tentti|exam|test|kokeet)\b/i.test(rowText)) return;
-      
-      // Extract date (look for DD.MM.YYYY or similar)
-      const dateMatch = rowText.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+      // Extract date from first cell (format: "Ti 3.2.2026")
+      const dateCell = cells[0];
+      const dateText = dateCell.textContent.trim();
+      const dateMatch = dateText.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
       if (!dateMatch) return;
       
       const [, day, month, year] = dateMatch;
       const dateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
       
-      // Extract time (look for HH:MM or HH.MM)
-      const timeMatch = rowText.match(/(\d{1,2})[:.:](\d{2})/);
-      const timeStr = timeMatch ? `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}` : '08:00';
+      // Extract title and subject from second cell
+      // Format: "Sanakoe teksti 7 : ENA.8A ENA02 : Englanti, A1"
+      // We want the part before the first colon as title
+      const titleCell = cells[1];
+      const titleText = titleCell.textContent.trim();
       
-      // Extract student name (usually first name visible)
-      // Look for capitalized words that might be names
-      const nameMatch = rowText.match(/\b([A-ZÅÄÖ][a-zåäö]+)\b/);
-      const studentName = nameMatch ? nameMatch[1] : null;
+      // Split by colon and take first part as exam title
+      const parts = titleText.split(':').map(p => p.trim());
+      let title = parts[0] || titleText;
       
-      // Extract exam subject/title (remove date, time, name)
-      let title = rowText
-        .replace(/\d{1,2}\.\d{1,2}\.\d{4}/g, '')
-        .replace(/\d{1,2}[:.]\d{2}/g, '')
-        .replace(/\b(ma|ti|ke|to|pe|la|su)\b/gi, '')
-        .replace(/\(.*?\)/g, '')
-        .trim();
+      // If we have a subject (after last colon), append it
+      if (parts.length > 2) {
+        const subject = parts[parts.length - 1];
+        title = `${title} (${subject})`;
+      }
       
-      // Clean up excessive whitespace
-      title = title.replace(/\s+/g, ' ').trim();
+      // Default time to 08:00 (exams usually in morning)
+      const timeStr = '08:00';
       
       if (title && dateStr) {
         events.push({
           title: title,
           date: dateStr,
           time: timeStr,
-          studentName: studentName,
           type: 'exam',
           source: 'school'
         });
