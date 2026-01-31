@@ -13,6 +13,8 @@ import ChangePasswordPage from './pages/ChangePasswordPage'
 import LandingPage from './pages/LandingPage'
 import TodoPage from './pages/TodoPage'
 import ShoppingPage from './pages/ShoppingPage'
+import ReportDaily from './pages/ReportDaily'
+import ReportWeekly from './pages/ReportWeekly'
 import './i18n/i18n'
 import './index.css'
 
@@ -35,6 +37,8 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   return (
     <Routes>
+      <Route path="/report/daily" element={<ReportDaily />} />
+      <Route path="/report/weekly" element={<ReportWeekly />} />
       <Route path="/welcome" element={<PublicRoute><LandingPage /></PublicRoute>} />
       <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
