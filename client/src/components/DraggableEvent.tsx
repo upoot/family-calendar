@@ -25,6 +25,7 @@ export default function DraggableEvent({ event, onClick }: Props) {
         opacity: isDragging ? 0.5 : 1,
         cursor: 'grab',
       }}
+      title={event.description || undefined}
       onClick={(e) => {
         e.stopPropagation();
         onClick();

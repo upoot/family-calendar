@@ -163,52 +163,46 @@ function getExamsCalendarHTML() {
   </style>
 </head>
 <body>
-  <a href="/logout" class="logout">Kirjaudu ulos</a>
+  <a aria-label="Kirjaudu ulos" href="/logout" id="logout-button" title="Kirjaudu ulos"><span class="vismaicon vismaicon-menu vismaicon-logout"></span>Kirjaudu ulos</a>
   <h1>Kokeet - Kalenteri</h1>
   
   <table class="table-grey">
-    <thead>
-      <tr>
-        <th>Päivämäärä</th>
-        <th>Koe</th>
-        <th>Kurssi</th>
-      </tr>
-    </thead>
     <tbody>
       <tr>
         <td>3.2.2026</td>
         <td>Sanakoe teksti 7 : ENA.8A ENA02 : Englanti, A1</td>
-        <td>ENA02</td>
+      </tr>
+      <tr>
+        <td>Opettaja</td>
+        <td>Virtanen Maija</td>
+      </tr>
+      <tr>
+        <td>Kokeen lisätiedot</td>
+        <td>Opiskele tekstin 7 sanat ulkoa.\nKirjasta sivut 45-48.</td>
       </tr>
       <tr>
         <td>19.2.2026</td>
         <td>Jaksollinen järjestelmä, alkuaineiden ominaisuudet ja erilaiset sidokset : KE.8A KE02 : Kemia</td>
-        <td>KE02</td>
       </tr>
       <tr>
-        <td>10.3.2026</td>
-        <td>Englannin koe : ENA.8A ENA02 : Englanti, A1</td>
-        <td>ENA02</td>
+        <td>Opettaja</td>
+        <td>Lahtinen Pekka</td>
       </tr>
       <tr>
-        <td>11.3.2026</td>
-        <td>Koe : MA.8A MAA02 : Matematiikka</td>
-        <td>MAA02</td>
+        <td>Kokeen lisätiedot</td>
+        <td>Kertaa kokeeseen seuraavat asiat:\n1) Jaksollinen järjestelmä s. 30-45\n2) Alkuaineiden ominaisuudet s. 46-52\n3) Sidokset (ioni-, kovalenttinen, metallisidos) s. 53-60\nVoit kerrata tekemällä digitehtävät.</td>
       </tr>
       <tr>
         <td>13.3.2026</td>
-        <td>Ruotsin koe KPL 1-2. : RUB.8A RUB12 : Ruotsin kieli, B1</td>
-        <td>RUB12</td>
+        <td>Ruotsin koe KPL 4 : RUB.8A RUB12 : Ruotsin kieli, B1</td>
       </tr>
       <tr>
-        <td>16.3.2026</td>
-        <td>Iso koe : GE.8A GE02 : Maantieto</td>
-        <td>GE02</td>
+        <td>Opettaja</td>
+        <td>Lindström Anna</td>
       </tr>
       <tr>
-        <td>27.3.2026</td>
-        <td>Valtiovertailun palautuspäivä : GE.8A GE02 : Maantieto</td>
-        <td>GE02</td>
+        <td>Kokeen lisätiedot</td>
+        <td>Kertaa kokeeseen seuraavat asiat:\n1) Teemasanat "husdjur" s. 96\n2) Kappale 4 "Inez och Vickan" sekä sanasto s. 100-102\n3) Substantiivit, yksikkö ja monikko taivutuksineen s. 107-113, 209-210, vihko\nVoit kerrata tekemällä kpl 4 digitehtävät Novasta.</td>
       </tr>
     </tbody>
   </table>

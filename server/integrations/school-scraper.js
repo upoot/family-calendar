@@ -105,10 +105,8 @@ export async function scrapeSchoolExams(credentials, options = {}) {
     // Logout before closing to avoid duplicate session warnings
     onProgress('save', 'started', 'Kirjaudutaan ulos...');
     try {
-      // Try common logout paths
-      const currentUrl = new URL(page.url());
-      const logoutUrl = `${currentUrl.origin}/logout`;
-      await page.goto(logoutUrl, { waitUntil: 'domcontentloaded', timeout: 5000 });
+      // Click the logout button
+      await page.click('#logout-button', { timeout: 5000 });
       onProgress('save', 'success', 'Uloskirjautuminen onnistui ✅');
     } catch (e) {
       // Logout failed - not critical, continue
