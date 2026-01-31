@@ -32,7 +32,7 @@ const authLimiter = process.env.NODE_ENV === 'test'
   ? (req, res, next) => next()
   : rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minuuttia
-      max: 5, // max 5 yritystä per IP
+      max: 20, // max 20 yritystä per IP (nostettu report-screenshotteja varten)
       standardHeaders: true,
       legacyHeaders: false,
       message: { error: 'Too many attempts, please try again later' },

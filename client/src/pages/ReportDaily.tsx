@@ -19,8 +19,15 @@ async function authenticate(email: string, password: string): Promise<{ token: s
   });
   if (!res.ok) throw new Error('Login failed');
   const data = await res.json();
-  const family = data.user.families[0];
-  return { token: data.token, familyId: family.id, familyName: family.name };
+  const token = data.token;
+  // Login doesn't return families — fetch from /api/auth/me
+  const meRes = await fetch(`${API}/api/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!meRes.ok) throw new Error('Failed to fetch user info');
+  const me = await meRes.json();
+  const family = me.families[0];
+  return { token, familyId: family.id, familyName: family.name };
 }
 
 export default function ReportDaily() {
@@ -46,10 +53,10 @@ export default function ReportDaily() {
         setFamilyName(fn);
 
         const [evRes, memRes] = await Promise.all([
-          fetch(`${API}/api/families/${familyId}/events?start=${dateStr}&end=${dateStr}`, {
+          fetch(`${API}/api/events?familyId=${familyId}&start=${dateStr}&end=${dateStr}`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          fetch(`${API}/api/families/${familyId}/members`, {
+          fetch(`${API}/api/members?familyId=${familyId}`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
         ]);
