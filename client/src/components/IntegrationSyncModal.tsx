@@ -143,32 +143,24 @@ export default function IntegrationSyncModal({
         {!isSyncing ? (
           // Input form
           <div style={{ padding: '1.5rem' }}>
-            {initialCredentials && (
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                💡 Syötä salasana synkronoidaksesi
-              </p>
-            )}
-            
             <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500 }}>
               URL
             </label>
             <input
               type="url"
               value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://example.com"
-              readOnly={!!initialCredentials}
+              readOnly
               style={{
                 width: '100%',
                 padding: '0.75rem',
                 marginBottom: '1rem',
-                background: initialCredentials ? 'var(--bg-secondary)' : 'var(--bg-tertiary)',
+                background: 'var(--bg-secondary)',
                 border: '1px solid var(--border-light)',
                 borderRadius: 'var(--radius-md)',
-                color: 'var(--text-primary)',
+                color: 'var(--text-muted)',
                 fontFamily: 'inherit',
                 fontSize: '0.9rem',
-                cursor: initialCredentials ? 'not-allowed' : 'text'
+                cursor: 'not-allowed'
               }}
             />
 
@@ -180,18 +172,17 @@ export default function IntegrationSyncModal({
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Käyttäjätunnus"
-              readOnly={!!initialCredentials}
+              autoFocus
               style={{
                 width: '100%',
                 padding: '0.75rem',
                 marginBottom: '1rem',
-                background: initialCredentials ? 'var(--bg-secondary)' : 'var(--bg-tertiary)',
+                background: 'var(--bg-tertiary)',
                 border: '1px solid var(--border-light)',
                 borderRadius: 'var(--radius-md)',
                 color: 'var(--text-primary)',
                 fontFamily: 'inherit',
-                fontSize: '0.9rem',
-                cursor: initialCredentials ? 'not-allowed' : 'text'
+                fontSize: '0.9rem'
               }}
             />
 
@@ -203,7 +194,6 @@ export default function IntegrationSyncModal({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Salasana"
-              autoFocus={!!initialCredentials}
               style={{
                 width: '100%',
                 padding: '0.75rem',
@@ -218,7 +208,7 @@ export default function IntegrationSyncModal({
             />
 
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-              <button className="btn-cancel" onClick={onClose}>
+              <button className="btn-cancel" onClick={handleOverlayClick}>
                 Peruuta
               </button>
               <button 
