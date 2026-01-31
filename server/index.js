@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import Database from 'better-sqlite3';
@@ -1143,37 +1144,81 @@ function logSync(familyId, integrationType, eventCount, status, errorMessage = n
   ).run(familyId, integrationType, eventCount, status, errorMessage);
 }
 
-// GET integration settings
+// GET integration settings (all members)
 app.get('/api/families/:familyId/integrations/:type', authMiddleware, requireFamily, (req, res) => {
   const { type } = req.params;
-  const settings = db.prepare(
-    'SELECT id, integration_type, config, last_sync FROM integration_settings WHERE family_id = ? AND integration_type = ?'
-  ).get(req.familyId, type);
   
-  res.json(settings || { integration_type: type, config: null, last_sync: null });
+  // Get all integrations for this family + type
+  const integrations = db.prepare(`
+    SELECT 
+      integration_settings.id,
+      integration_settings.member_id,
+      integration_settings.integration_type,
+      integration_settings.config,
+      integration_settings.last_sync,
+      members.name as member_name,
+      members.color as member_color
+    FROM integration_settings
+    LEFT JOIN members ON integration_settings.member_id = members.id
+    WHERE integration_settings.family_id = ? AND integration_settings.integration_type = ?
+  `).all(req.familyId, type);
+  
+  // Get last sync status for each
+  const withStatus = integrations.map(int => {
+    const lastSync = db.prepare(
+      'SELECT event_count, status, error_message, synced_at FROM integration_syncs WHERE family_id = ? AND integration_type = ? ORDER BY synced_at DESC LIMIT 1'
+    ).get(req.familyId, type);
+    
+    return {
+      ...int,
+      config: int.config ? JSON.parse(int.config) : null,
+      last_sync_status: lastSync
+    };
+  });
+  
+  res.json(withStatus);
 });
 
-// Save integration settings
-app.put('/api/families/:familyId/integrations/:type', authMiddleware, requireFamily, (req, res) => {
+// Save integration settings (per member)
+app.post('/api/families/:familyId/integrations/:type', authMiddleware, requireFamily, (req, res) => {
   const { type } = req.params;
-  const { config } = req.body;
+  const { member_id, config } = req.body;
   
-  if (!config) return res.status(400).json({ error: 'config required' });
+  if (!member_id || !config) {
+    return res.status(400).json({ error: 'member_id and config required' });
+  }
+  
+  // Verify member belongs to family
+  const member = db.prepare('SELECT id FROM members WHERE id = ? AND family_id = ?').get(member_id, req.familyId);
+  if (!member) {
+    return res.status(404).json({ error: 'Member not found' });
+  }
   
   // Check if exists
   const existing = db.prepare(
-    'SELECT id FROM integration_settings WHERE family_id = ? AND integration_type = ?'
-  ).get(req.familyId, type);
+    'SELECT id FROM integration_settings WHERE family_id = ? AND integration_type = ? AND member_id = ?'
+  ).get(req.familyId, type, member_id);
   
   if (existing) {
     db.prepare(
-      'UPDATE integration_settings SET config = ?, updated_at = CURRENT_TIMESTAMP WHERE family_id = ? AND integration_type = ?'
-    ).run(JSON.stringify(config), req.familyId, type);
+      'UPDATE integration_settings SET config = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).run(JSON.stringify(config), existing.id);
   } else {
     db.prepare(
-      'INSERT INTO integration_settings (family_id, integration_type, config) VALUES (?, ?, ?)'
-    ).run(req.familyId, type, JSON.stringify(config));
+      'INSERT INTO integration_settings (family_id, integration_type, member_id, config) VALUES (?, ?, ?, ?)'
+    ).run(req.familyId, type, member_id, JSON.stringify(config));
   }
+  
+  res.json({ success: true });
+});
+
+// Delete integration
+app.delete('/api/families/:familyId/integrations/:type/:memberId', authMiddleware, requireFamily, (req, res) => {
+  const { type, memberId } = req.params;
+  
+  db.prepare(
+    'DELETE FROM integration_settings WHERE family_id = ? AND integration_type = ? AND member_id = ?'
+  ).run(req.familyId, type, parseInt(memberId));
   
   res.json({ success: true });
 });
@@ -1182,10 +1227,16 @@ app.put('/api/families/:familyId/integrations/:type', authMiddleware, requireFam
 
 // SSE endpoint for live sync progress
 app.get('/api/families/:familyId/integrations/school/sync-stream', authMiddleware, requireFamily, async (req, res) => {
-  const { url, username, password } = req.query;
+  const { memberId, url, username, password } = req.query;
   
-  if (!url || !username || !password) {
-    return res.status(400).json({ error: 'URL and credentials required' });
+  if (!memberId || !url || !username || !password) {
+    return res.status(400).json({ error: 'memberId, URL and credentials required' });
+  }
+  
+  // Verify member belongs to family
+  const member = db.prepare('SELECT id, name FROM members WHERE id = ? AND family_id = ?').get(parseInt(memberId), req.familyId);
+  if (!member) {
+    return res.status(404).json({ error: 'Member not found' });
   }
   
   // Rate limit check
@@ -1246,46 +1297,30 @@ app.get('/api/families/:familyId/integrations/school/sync-stream', authMiddlewar
       examCategory = { id: result.lastInsertRowid };
     }
     
-    // Get family members
-    const familyMembers = db.prepare('SELECT id, name FROM members WHERE family_id = ?').all(req.familyId);
-    
-    if (familyMembers.length === 0) {
-      throw new Error('No members found in family');
-    }
-    
-    const matchMember = (studentName) => {
-      if (!studentName) return familyMembers[0].id;
-      const normalized = studentName.toLowerCase().trim();
-      const exactMatch = familyMembers.find(m => 
-        m.name.toLowerCase().split(/\s+/)[0] === normalized
-      );
-      if (exactMatch) return exactMatch.id;
-      const startsWithMatch = familyMembers.find(m => 
-        m.name.toLowerCase().split(/\s+/)[0].startsWith(normalized)
-      );
-      if (startsWithMatch) return startsWithMatch.id;
-      return familyMembers[0].id;
-    };
-    
     let addedCount = 0;
     
+    // Save all exams for this specific member
     for (const exam of exams) {
       const existing = db.prepare(
-        'SELECT id FROM events WHERE family_id = ? AND title = ? AND date = ?'
-      ).get(req.familyId, exam.title, exam.date);
+        'SELECT id FROM events WHERE family_id = ? AND member_id = ? AND title = ? AND date = ?'
+      ).get(req.familyId, member.id, exam.title, exam.date);
       
       if (!existing) {
-        const memberId = matchMember(exam.studentName);
         db.prepare(
           'INSERT INTO events (family_id, member_id, category_id, title, date, start_time, end_time, is_recurring) VALUES (?, ?, ?, ?, ?, ?, ?, 0)'
-        ).run(req.familyId, memberId, examCategory.id, exam.title, exam.date, exam.time, exam.time);
+        ).run(req.familyId, member.id, examCategory.id, exam.title, exam.date, exam.time, exam.time);
         addedCount++;
       }
     }
     
+    // Update last_sync for this integration
+    db.prepare(
+      'UPDATE integration_settings SET last_sync = CURRENT_TIMESTAMP WHERE family_id = ? AND integration_type = ? AND member_id = ?'
+    ).run(req.familyId, 'school', member.id);
+    
     logSync(req.familyId, 'school', addedCount, 'success');
     
-    onProgress('save', 'success', `Lisättiin ${addedCount} uutta koetta`);
+    onProgress('save', 'success', `Lisättiin ${addedCount} uutta koetta (${member.name})`);
     onProgress('complete', 'success', 'Synkronointi valmis!');
     
   } catch (error) {

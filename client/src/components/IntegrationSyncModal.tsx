@@ -12,9 +12,20 @@ interface LogEntry {
 interface IntegrationSyncModalProps {
   onClose: () => void;
   familyId: number;
+  memberId?: number;
+  initialCredentials?: {
+    url: string;
+    username: string;
+    password: string;
+  };
 }
 
-export default function IntegrationSyncModal({ onClose, familyId }: IntegrationSyncModalProps) {
+export default function IntegrationSyncModal({ 
+  onClose, 
+  familyId, 
+  memberId,
+  initialCredentials 
+}: IntegrationSyncModalProps) {
   const { t } = useTranslation();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isComplete, setIsComplete] = useState(false);
@@ -22,11 +33,20 @@ export default function IntegrationSyncModal({ onClose, familyId }: IntegrationS
   const [isSyncing, setIsSyncing] = useState(false);
   
   // Form inputs
-  const [url, setUrl] = useState('');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [url, setUrl] = useState(initialCredentials?.url || '');
+  const [username, setUsername] = useState(initialCredentials?.username || '');
+  const [password, setPassword] = useState(initialCredentials?.password || '');
   
   const logsEndRef = useRef<HTMLDivElement>(null);
+  
+  // Auto-start sync if credentials provided - DISABLED, always require manual start
+  // useEffect(() => {
+  //   if (initialCredentials && memberId) {
+  //     if (initialCredentials.password) {
+  //       startSync();
+  //     }
+  //   }
+  // }, []);
 
   useEffect(() => {
     // Auto-scroll to latest log
@@ -37,6 +57,11 @@ export default function IntegrationSyncModal({ onClose, familyId }: IntegrationS
     if (!url.trim() || !username.trim() || !password.trim()) {
       return;
     }
+    
+    if (!memberId) {
+      alert('Member ID puuttuu');
+      return;
+    }
 
     setIsSyncing(true);
     setLogs([]);
@@ -44,7 +69,7 @@ export default function IntegrationSyncModal({ onClose, familyId }: IntegrationS
     setHasError(false);
 
     // Setup SSE connection
-    const sseUrl = `/api/families/${familyId}/integrations/school/sync-stream?url=${encodeURIComponent(url)}&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+    const sseUrl = `/api/families/${familyId}/integrations/school/sync-stream?memberId=${memberId}&url=${encodeURIComponent(url)}&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
     const eventSource = new EventSource(sseUrl);
 
     eventSource.onmessage = (event) => {
@@ -92,12 +117,27 @@ export default function IntegrationSyncModal({ onClose, familyId }: IntegrationS
     }
   };
 
+  const handleOverlayClick = () => {
+    // Don't close if syncing
+    if (isSyncing && !isComplete && !hasError) {
+      return;
+    }
+    onClose();
+  };
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleOverlayClick}>
       <div className="integration-sync-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>🏫 School Sync</h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <button 
+            className="modal-close" 
+            onClick={handleOverlayClick}
+            disabled={isSyncing && !isComplete && !hasError}
+            style={{ cursor: (isSyncing && !isComplete && !hasError) ? 'not-allowed' : 'pointer' }}
+          >
+            ✕
+          </button>
         </div>
 
         {!isSyncing ? (
@@ -109,29 +149,30 @@ export default function IntegrationSyncModal({ onClose, familyId }: IntegrationS
             <input
               type="url"
               value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://example.com"
+              readOnly
               style={{
                 width: '100%',
                 padding: '0.75rem',
                 marginBottom: '1rem',
-                background: 'var(--bg-tertiary)',
+                background: 'var(--bg-secondary)',
                 border: '1px solid var(--border-light)',
                 borderRadius: 'var(--radius-md)',
-                color: 'var(--text-primary)',
+                color: 'var(--text-muted)',
                 fontFamily: 'inherit',
-                fontSize: '0.9rem'
+                fontSize: '0.9rem',
+                cursor: 'not-allowed'
               }}
             />
 
             <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500 }}>
-              Username
+              Käyttäjätunnus
             </label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Username"
+              placeholder="Käyttäjätunnus"
+              autoFocus
               style={{
                 width: '100%',
                 padding: '0.75rem',
@@ -146,13 +187,13 @@ export default function IntegrationSyncModal({ onClose, familyId }: IntegrationS
             />
 
             <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500 }}>
-              Password
+              Salasana
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
+              placeholder="Salasana"
               style={{
                 width: '100%',
                 padding: '0.75rem',
@@ -167,13 +208,13 @@ export default function IntegrationSyncModal({ onClose, familyId }: IntegrationS
             />
 
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-              <button className="btn-cancel" onClick={onClose}>
+              <button className="btn-cancel" onClick={handleOverlayClick}>
                 Peruuta
               </button>
               <button 
                 className="btn-primary" 
                 onClick={startSync}
-                disabled={!url.trim() || !username.trim() || !password.trim()}
+                disabled={!url.trim() || !username.trim() || !password.trim() || !memberId}
               >
                 Aloita synkronointi
               </button>
