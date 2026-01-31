@@ -16,7 +16,6 @@ interface Integration {
   member_color: string;
   config: {
     baseUrl: string;
-    username: string;
   };
   last_sync: string | null;
   last_sync_status: {
@@ -87,8 +86,8 @@ export default function SchoolIntegrationList({ familyId, token }: SchoolIntegra
     setSyncingMemberId(integration.member_id);
     setSyncCredentials({
       url: integration.config.baseUrl,
-      username: integration.config.username,
-      password: '' // User must re-enter password
+      username: '',
+      password: ''
     });
   };
 

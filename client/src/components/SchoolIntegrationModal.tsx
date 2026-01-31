@@ -37,8 +37,6 @@ export default function SchoolIntegrationModal({
     existingIntegration?.member_id || (members[0]?.id || 0)
   );
   const [url, setUrl] = useState(existingIntegration?.config.baseUrl || '');
-  const [username, setUsername] = useState(existingIntegration?.config.username || '');
-  const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -49,8 +47,8 @@ export default function SchoolIntegrationModal({
   );
 
   const handleSave = async () => {
-    if (!memberId || !url.trim() || !username.trim() || !password.trim()) {
-      setError('Kaikki kentät vaaditaan');
+    if (!memberId || !url.trim()) {
+      setError('Member ja URL vaaditaan');
       return;
     }
 
@@ -67,9 +65,7 @@ export default function SchoolIntegrationModal({
         body: JSON.stringify({
           member_id: memberId,
           config: {
-            baseUrl: url,
-            username: username,
-            password: password
+            baseUrl: url
           }
         })
       });
@@ -140,48 +136,6 @@ export default function SchoolIntegrationModal({
             style={{
               width: '100%',
               padding: '0.75rem',
-              marginBottom: '1rem',
-              background: 'var(--bg-tertiary)',
-              border: '1px solid var(--border-light)',
-              borderRadius: 'var(--radius-md)',
-              color: 'var(--text-primary)',
-              fontFamily: 'inherit',
-              fontSize: '0.9rem'
-            }}
-          />
-
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500 }}>
-            Käyttäjätunnus
-          </label>
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Käyttäjätunnus"
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              marginBottom: '1rem',
-              background: 'var(--bg-tertiary)',
-              border: '1px solid var(--border-light)',
-              borderRadius: 'var(--radius-md)',
-              color: 'var(--text-primary)',
-              fontFamily: 'inherit',
-              fontSize: '0.9rem'
-            }}
-          />
-
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500 }}>
-            Salasana
-          </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Salasana"
-            style={{
-              width: '100%',
-              padding: '0.75rem',
               marginBottom: '1.5rem',
               background: 'var(--bg-tertiary)',
               border: '1px solid var(--border-light)',
@@ -192,11 +146,9 @@ export default function SchoolIntegrationModal({
             }}
           />
 
-          {existingIntegration && (
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-              💡 Syötä salasana uudelleen päivittääksesi asetukset
-            </p>
-          )}
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+            💡 Käyttäjätunnus ja salasana kysytään synkronoinnin yhteydessä
+          </p>
 
           <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
             <button className="btn-cancel" onClick={onClose}>
@@ -205,7 +157,7 @@ export default function SchoolIntegrationModal({
             <button 
               className="btn-primary" 
               onClick={handleSave}
-              disabled={saving || !memberId || !url.trim() || !username.trim() || !password.trim()}
+              disabled={saving || !memberId || !url.trim()}
             >
               {saving ? 'Tallennetaan...' : 'Tallenna'}
             </button>
