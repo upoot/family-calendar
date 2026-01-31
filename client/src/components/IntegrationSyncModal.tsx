@@ -39,17 +39,14 @@ export default function IntegrationSyncModal({
   
   const logsEndRef = useRef<HTMLDivElement>(null);
   
-  // Auto-start sync if credentials provided
-  useEffect(() => {
-    if (initialCredentials && memberId) {
-      // Need to re-enter password
-      if (!initialCredentials.password) {
-        setIsSyncing(false);
-      } else {
-        startSync();
-      }
-    }
-  }, []);
+  // Auto-start sync if credentials provided - DISABLED, always require manual start
+  // useEffect(() => {
+  //   if (initialCredentials && memberId) {
+  //     if (initialCredentials.password) {
+  //       startSync();
+  //     }
+  //   }
+  // }, []);
 
   useEffect(() => {
     // Auto-scroll to latest log
