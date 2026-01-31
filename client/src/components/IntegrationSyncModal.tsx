@@ -12,9 +12,20 @@ interface LogEntry {
 interface IntegrationSyncModalProps {
   onClose: () => void;
   familyId: number;
+  memberId?: number;
+  initialCredentials?: {
+    url: string;
+    username: string;
+    password: string;
+  };
 }
 
-export default function IntegrationSyncModal({ onClose, familyId }: IntegrationSyncModalProps) {
+export default function IntegrationSyncModal({ 
+  onClose, 
+  familyId, 
+  memberId,
+  initialCredentials 
+}: IntegrationSyncModalProps) {
   const { t } = useTranslation();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isComplete, setIsComplete] = useState(false);
@@ -22,11 +33,23 @@ export default function IntegrationSyncModal({ onClose, familyId }: IntegrationS
   const [isSyncing, setIsSyncing] = useState(false);
   
   // Form inputs
-  const [url, setUrl] = useState('');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [url, setUrl] = useState(initialCredentials?.url || '');
+  const [username, setUsername] = useState(initialCredentials?.username || '');
+  const [password, setPassword] = useState(initialCredentials?.password || '');
   
   const logsEndRef = useRef<HTMLDivElement>(null);
+  
+  // Auto-start sync if credentials provided
+  useEffect(() => {
+    if (initialCredentials && memberId) {
+      // Need to re-enter password
+      if (!initialCredentials.password) {
+        setIsSyncing(false);
+      } else {
+        startSync();
+      }
+    }
+  }, []);
 
   useEffect(() => {
     // Auto-scroll to latest log
@@ -37,6 +60,11 @@ export default function IntegrationSyncModal({ onClose, familyId }: IntegrationS
     if (!url.trim() || !username.trim() || !password.trim()) {
       return;
     }
+    
+    if (!memberId) {
+      alert('Member ID puuttuu');
+      return;
+    }
 
     setIsSyncing(true);
     setLogs([]);
@@ -44,7 +72,7 @@ export default function IntegrationSyncModal({ onClose, familyId }: IntegrationS
     setHasError(false);
 
     // Setup SSE connection
-    const sseUrl = `/api/families/${familyId}/integrations/school/sync-stream?url=${encodeURIComponent(url)}&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+    const sseUrl = `/api/families/${familyId}/integrations/school/sync-stream?memberId=${memberId}&url=${encodeURIComponent(url)}&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
     const eventSource = new EventSource(sseUrl);
 
     eventSource.onmessage = (event) => {
@@ -103,6 +131,12 @@ export default function IntegrationSyncModal({ onClose, familyId }: IntegrationS
         {!isSyncing ? (
           // Input form
           <div style={{ padding: '1.5rem' }}>
+            {initialCredentials && (
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                💡 Syötä salasana synkronoidaksesi
+              </p>
+            )}
+            
             <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500 }}>
               URL
             </label>
@@ -111,48 +145,53 @@ export default function IntegrationSyncModal({ onClose, familyId }: IntegrationS
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://example.com"
+              readOnly={!!initialCredentials}
               style={{
                 width: '100%',
                 padding: '0.75rem',
                 marginBottom: '1rem',
-                background: 'var(--bg-tertiary)',
+                background: initialCredentials ? 'var(--bg-secondary)' : 'var(--bg-tertiary)',
                 border: '1px solid var(--border-light)',
                 borderRadius: 'var(--radius-md)',
                 color: 'var(--text-primary)',
                 fontFamily: 'inherit',
-                fontSize: '0.9rem'
+                fontSize: '0.9rem',
+                cursor: initialCredentials ? 'not-allowed' : 'text'
               }}
             />
 
             <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500 }}>
-              Username
+              Käyttäjätunnus
             </label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Username"
+              placeholder="Käyttäjätunnus"
+              readOnly={!!initialCredentials}
               style={{
                 width: '100%',
                 padding: '0.75rem',
                 marginBottom: '1rem',
-                background: 'var(--bg-tertiary)',
+                background: initialCredentials ? 'var(--bg-secondary)' : 'var(--bg-tertiary)',
                 border: '1px solid var(--border-light)',
                 borderRadius: 'var(--radius-md)',
                 color: 'var(--text-primary)',
                 fontFamily: 'inherit',
-                fontSize: '0.9rem'
+                fontSize: '0.9rem',
+                cursor: initialCredentials ? 'not-allowed' : 'text'
               }}
             />
 
             <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: 500 }}>
-              Password
+              Salasana
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
+              placeholder="Salasana"
+              autoFocus={!!initialCredentials}
               style={{
                 width: '100%',
                 padding: '0.75rem',
@@ -173,7 +212,7 @@ export default function IntegrationSyncModal({ onClose, familyId }: IntegrationS
               <button 
                 className="btn-primary" 
                 onClick={startSync}
-                disabled={!url.trim() || !username.trim() || !password.trim()}
+                disabled={!url.trim() || !username.trim() || !password.trim() || !memberId}
               >
                 Aloita synkronointi
               </button>
