@@ -1294,25 +1294,32 @@ app.post('/api/families/:familyId/integrations/school/sync-poll', authMiddleware
       { targetUrl, sessionCookies: null, onProgress }
     );
     
-    // Get or create exam category
-    let examCategory = db.prepare('SELECT id FROM categories WHERE name = ? AND family_id IS NULL').get('Koe');
-    if (!examCategory) {
-      const result = db.prepare('INSERT INTO categories (name, icon, family_id, display_order) VALUES (?, ?, NULL, 100)').run('Koe', '📝');
-      examCategory = { id: result.lastInsertRowid };
-    }
-    
-    // Save exams
+    // In simulation mode, don't save to calendar - just return the data
     let addedCount = 0;
-    for (const exam of exams) {
-      // Check across ALL members in family (same exam can't exist twice)
-      const existing = db.prepare('SELECT id FROM events WHERE family_id = ? AND title = ? AND date = ?').get(req.familyId, exam.title, exam.date);
-      if (!existing) {
-        db.prepare('INSERT INTO events (family_id, member_id, category_id, title, date, start_time, end_time, is_recurring) VALUES (?, ?, ?, ?, ?, ?, ?, 0)').run(req.familyId, member.id, examCategory.id, exam.title, exam.date, exam.time, exam.time);
-        addedCount++;
-      }
-    }
     
-    logSync(req.familyId, 'school', addedCount, 'success');
+    if (!simulate) {
+      // Get or create exam category
+      let examCategory = db.prepare('SELECT id FROM categories WHERE name = ? AND family_id IS NULL').get('Koe');
+      if (!examCategory) {
+        const result = db.prepare('INSERT INTO categories (name, icon, family_id, display_order) VALUES (?, ?, NULL, 100)').run('Koe', '📝');
+        examCategory = { id: result.lastInsertRowid };
+      }
+      
+      // Save exams
+      for (const exam of exams) {
+        // Check across ALL members in family (same exam can't exist twice)
+        const existing = db.prepare('SELECT id FROM events WHERE family_id = ? AND title = ? AND date = ?').get(req.familyId, exam.title, exam.date);
+        if (!existing) {
+          db.prepare('INSERT INTO events (family_id, member_id, category_id, title, date, start_time, end_time, is_recurring) VALUES (?, ?, ?, ?, ?, ?, ?, 0)').run(req.familyId, member.id, examCategory.id, exam.title, exam.date, exam.time, exam.time);
+          addedCount++;
+        }
+      }
+      
+      logSync(req.familyId, 'school', addedCount, 'success');
+    } else {
+      console.log('[School Sync] 🎭 Simulation mode - skipping calendar save');
+      addedCount = exams.length; // Report all as "added" for display
+    }
     
     res.json({ 
       success: true, 
